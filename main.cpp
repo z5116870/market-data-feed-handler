@@ -19,7 +19,7 @@ int main() {
     }
 
     // 2. Set socket options at socket layer (SOL_SOCKET)
-    // SO_REUSEADDR = let the same addr/port be reused by multiple sockets (multiple processes)
+    // SO_REUSEADDR/SO_REUSEPORT = let the same addr/port be reused by multiple sockets (multiple processes)
     int one = 1; // Set the value to 1, setsocketopt expects a void *, so cast it.
     if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, (void *) &one, sizeof(one)) < 0)
     {

@@ -8,21 +8,28 @@
 static const Logger logger = LogLevel::RAW;
 
 // Parsing loop, run for each syscall to obtain data from socket receive buffer
-// *TODO* 
- void parseMessage(const char* buf, size_t len) {
-    char type = buf[0];
-    switch(type) {
-        case 'A': parseTrade(buf, tradeMsg); break;
-        case 'P': parseTrade(buf, tradeMsg); break;
-        case 'E': parseOrderExecuted(buf, orderExecutedMsg); break;
-        case 'X': parseOrderWithPrice(buf, orderExecutedWithPriceMsg); break;
-        case 'S': parseSystemEvent(buf, sysMsg); break;
-        case 'C': parseOrderCancelled(buf, orderCancelMsg); break;
-    }
+ void parseMessage(const char* buf, const ssize_t &len) {
+    ssize_t pos = 0;
+    char type;
 
+    // The "len" value is the length of bytes read by recv. This should be equal
+    // to near 1472 byte max, so we must go through the buffer and parse each
+    // ITCH message based on the first byte (messageType)
+    while(pos < len) {
+        type = buf[pos];
+        switch(type) {
+            case 'A': pos += parseTrade(buf + pos, tradeMsg); break;
+            case 'P': pos += parseTrade(buf + pos, tradeMsg); break;
+            case 'E': pos += parseOrderExecuted(buf + pos, orderExecutedMsg); break;
+            case 'X': pos += parseOrderWithPrice(buf + pos, orderExecutedWithPriceMsg); break;
+            case 'S': pos += parseSystemEvent(buf + pos, sysMsg); break;
+            case 'C': pos += parseOrderCancelled(buf + pos, orderCancelMsg); break;
+        }
+        std::cout << std::endl;
+    }
 }
 
-void parseTrade(const char *buf, TradeMessage &t) {
+ssize_t parseTrade(const char *buf, TradeMessage &t) {
     using namespace std::chrono;
     size_t offset = 0;
     // 1. Message Type (1 byte)
@@ -32,35 +39,42 @@ void parseTrade(const char *buf, TradeMessage &t) {
     t.timestamp = readTimestamp(buf, offset);
     // show latency
 
-    // 3. Order Ref Number (8 bytes)
+    // 3. Sequence number
+    t.sequenceNumber = read4Bytes(buf, offset);
+
+    // 4. Order Ref Number (8 bytes)
     t.orderRefNumber = read8Bytes(buf, offset);
     
-    // 4. Buy/Sell Indicator
+    // 5. Buy/Sell Indicator
     t.buySellIndicator = buf[offset++];
     
-    // 5. Shares bought/buying
+    // 6. Shares bought/buying
     t.shares = read4Bytes(buf, offset);
     
-    // 6. Stock name
+    // 7. Stock name
     std::memcpy(&t.stock, buf + offset, 8);
     t.stock[8] = '\0';
     offset += 8;
     
-    // 7. Price
+    // 8. Price
     t.price = read4Bytes(buf, offset);
 
     logger.log(t);
     // Get latency
     getDelta(t.timestamp);
+    return MessageSize::Trade;
 }
 
-void parseOrderExecuted(const char *buf, OrderExecutedMessage &t) {
+ssize_t parseOrderExecuted(const char *buf, OrderExecutedMessage &t) {
     size_t offset = 0;
     // 1. Message Type (1 byte)
     t.messageType = buf[offset++];
 
     // 2. Timestamp (6 bytes)
     t.timestamp = readTimestamp(buf, offset);
+
+    // 3. Sequence Number (4 bytes)
+    t.sequenceNumber = read4Bytes(buf, offset);
 
     // 3. Order Ref Number (8 bytes)
     t.orderRefNumber = read8Bytes(buf, offset);
@@ -71,9 +85,10 @@ void parseOrderExecuted(const char *buf, OrderExecutedMessage &t) {
     logger.log(t);
     // Get latency
     getDelta(t.timestamp);
+    return MessageSize::OrderExecuted;
 }
 
-void parseOrderWithPrice(const char *buf, OrderExecutedWithPriceMessage &t) {
+ssize_t parseOrderWithPrice(const char *buf, OrderExecutedWithPriceMessage &t) {
     size_t offset = 0;
     // 1. Message Type (1 byte)
     t.messageType = buf[offset++];
@@ -81,30 +96,37 @@ void parseOrderWithPrice(const char *buf, OrderExecutedWithPriceMessage &t) {
     // 2. Timestamp (6 bytes)
     t.timestamp = readTimestamp(buf, offset);
 
-    // 3. Order Ref Number (8 bytes)
+    // 3. Sequence Number (4 bytes)
+    t.sequenceNumber = read4Bytes(buf, offset);
+
+    // 4. Order Ref Number (8 bytes)
     t.orderRefNumber = read8Bytes(buf, offset);
 
-    // 4. Executed shares
+    // 5. Executed shares
     t.executedShares = read4Bytes(buf, offset);
 
-    // 5. Printable
+    // 6. Printable
     t.printable = buf[offset++];
     
-    // 6. Executed price
+    // 7. Executed price
     t.executedPrice = read4Bytes(buf, offset);
 
     logger.log(t);
     // Get latency
     getDelta(t.timestamp);
+    return MessageSize::OrderExecutedWithPrice;
 }
 
-void parseSystemEvent(const char *buf, SystemEventMessage &t) {
+ssize_t parseSystemEvent(const char *buf, SystemEventMessage &t) {
     size_t offset = 0;
     // 1. Message Type (1 byte)
     t.messageType = buf[offset++];
 
     // 2. Timestamp (6 bytes)
     t.timestamp = readTimestamp(buf, offset);
+
+    // 3. Sequence Number (4 bytes)
+    t.sequenceNumber = read4Bytes(buf, offset);
 
     // 4. Executed shares
     t.eventCode = buf[offset++];
@@ -112,9 +134,10 @@ void parseSystemEvent(const char *buf, SystemEventMessage &t) {
     logger.log(t);
     // Get latency
     getDelta(t.timestamp);
+    return MessageSize::SystemEvent;
 }
 
-void parseOrderCancelled(const char *buf, OrderCancelMessage &t) {
+ssize_t parseOrderCancelled(const char *buf, OrderCancelMessage &t) {
     size_t offset = 0;
     // 1. Message Type (1 byte)
     t.messageType = buf[offset++];
@@ -122,42 +145,46 @@ void parseOrderCancelled(const char *buf, OrderCancelMessage &t) {
     // 2. Timestamp (6 bytes)
     t.timestamp = readTimestamp(buf, offset);
 
-    // 3. Order Ref Number (8 bytes)
+    // 3. Sequence Number (4 bytes)
+    t.sequenceNumber = read4Bytes(buf, offset);
+
+    // 4. Order Ref Number (8 bytes)
     t.orderRefNumber = read8Bytes(buf, offset);
 
-    // 4. Executed shares
+    // 5. Executed shares
     t.cancelledShares = read4Bytes(buf, offset);
 
     logger.log(t);
     // Get latency
     getDelta(t.timestamp);
+    return MessageSize::OrderCancelled;
 }
 
 void TradeMessage::getRawLogImpl() const {
     std::cout << "[" << messageType << "] " << "timestamp=" << timestamp \
-    << " orderRefNumber=" << orderRefNumber << " shares=" << shares << " stock=" \
+    << " sequenceNumber=" << sequenceNumber << " orderRefNumber=" << orderRefNumber << " shares=" << shares << " stock=" \
     << stock << " buysell=" << buySellIndicator << " price=" << price;
 }
 
 void OrderExecutedMessage::getRawLogImpl() const {
     std::cout << "[" << messageType << "] " << "timestamp=" << timestamp \
-    << " orderRefNumber=" << orderRefNumber << " executedShares=" << executedShares;
+    << " sequenceNumber=" << sequenceNumber << " orderRefNumber=" << orderRefNumber << " executedShares=" << executedShares;
 }
 
 void OrderExecutedWithPriceMessage::getRawLogImpl() const {
     std::cout << "[" << messageType << "] " << "timestamp=" << timestamp \
-    << " orderRefNumber=" << orderRefNumber << " executedShares=" << executedShares \
+    << " sequenceNumber=" << sequenceNumber << " orderRefNumber=" << orderRefNumber << " executedShares=" << executedShares \
     << " executedPrice=" << executedPrice << " printable=" << printable;
 }
 
 void SystemEventMessage::getRawLogImpl() const {
     std::cout << "[" << messageType << "] " << "timestamp=" << timestamp \
-    << " eventCode=[" << eventCode << "]";
+    << " sequenceNumber=" << sequenceNumber << " eventCode=[" << eventCode << "]";
 }
 
 void OrderCancelMessage::getRawLogImpl() const {
     std::cout << "[" << messageType << "] " << "timestamp=" << timestamp \
-    << " orderRefNumber=" << orderRefNumber << " cancelledShares=" << cancelledShares;
+    << " sequenceNumber=" << sequenceNumber << " orderRefNumber=" << orderRefNumber << " cancelledShares=" << cancelledShares;
 }
 
 std::ostream &operator<<(std::ostream &s, const TradeMessage &t) {

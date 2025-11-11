@@ -61,7 +61,7 @@ int main() {
 
     // 6. Receive traffic
     // align the buffer to the size of a cache
-    alignas(64) char buf[1024];
+    alignas(64) char buf[1500];
     while (1) {
         // Each call to recv reads from the socket receive buffer populated by the kernel
         // which loads the UDP payload containing each ITCH message independently
@@ -73,7 +73,6 @@ int main() {
         // Now buf contains the bytes for the next ITCH message, so we can parse it
         parseMessage(buf, nbytes);
         fflush(stdout);
-        std::cout << std::endl;
     }
     // 7. Leave the group and close
     setsockopt(sockfd, IPPROTO_IP, IP_DROP_MEMBERSHIP, (void*)&mcastMship, sizeof(mcastMship));

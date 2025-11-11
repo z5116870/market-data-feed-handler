@@ -7,6 +7,14 @@ enum LogLevel {
     VERBOSE = 1, RAW
 };
 
+enum MessageSize {
+    Trade = 36,
+    OrderExecuted = 23,
+    OrderExecutedWithPrice = 28,
+    SystemEvent = 12,
+    OrderCancelled = 23
+};
+
 // Logger class to print parsed messages
 class Logger {
 public:
@@ -93,12 +101,12 @@ struct OrderCancelMessage: OrderMessage<OrderCancelMessage> {
 };
 
 // Parsing functions
-void parseMessage(const char* buf, size_t len); 
-void parseTrade(const char* buf, TradeMessage &t);
-void parseOrderExecuted(const char* buf, OrderExecutedMessage &t);
-void parseOrderWithPrice(const char* buf, OrderExecutedWithPriceMessage &t);
-void parseSystemEvent(const char* buf, SystemEventMessage &t);
-void parseOrderCancelled(const char* buf, OrderCancelMessage &t);
+void parseMessage(const char* buf, const ssize_t &len); 
+ssize_t parseTrade(const char* buf, TradeMessage &t);
+ssize_t parseOrderExecuted(const char* buf, OrderExecutedMessage &t);
+ssize_t parseOrderWithPrice(const char* buf, OrderExecutedWithPriceMessage &t);
+ssize_t parseSystemEvent(const char* buf, SystemEventMessage &t);
+ssize_t parseOrderCancelled(const char* buf, OrderCancelMessage &t);
 
 // Static parsing structs (fixed memory address means they will be cache hot, faster writes)
 static TradeMessage tradeMsg{};

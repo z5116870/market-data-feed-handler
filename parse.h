@@ -4,7 +4,7 @@
 #include "helper.h"
 
 enum LogLevel {
-    VERBOSE = 1, RAW
+    VERBOSE = 1, RAW, OFF
 };
 
 enum MessageSize {

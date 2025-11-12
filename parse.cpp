@@ -27,6 +27,7 @@ static const Logger logger = LogLevel::RAW;
         }
         std::cout << std::endl;
     }
+    std::cout << "BATCH PROCESSED\n";
 }
 
 ssize_t parseTrade(const char *buf, TradeMessage &t) {

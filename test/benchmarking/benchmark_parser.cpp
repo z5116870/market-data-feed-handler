@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <iostream>
 #include <unistd.h>
+#include <chrono>
 #include "../../parse.h"
 
 #define MULTICAST_IP "239.1.1.1"
@@ -12,10 +13,6 @@
 
 // TURN OFF LOGGING
 static const Logger logger = LogLevel::OFF;
-
-struct GlobalState {
-    inline static uint32_t parsedMessages = 0;
-};
 
 int main() {
     int sockfd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
@@ -60,7 +57,8 @@ int main() {
     std::cout << "LISTENING FOR MULTICAST TRAFFIC ON " << MULTICAST_IP << std::endl;
 
     alignas(64) char buf[1500];
-    uint32_t NUM_MESSAGES = 10000;
+    uint32_t NUM_MESSAGES = 1000000;
+    auto now = std::chrono::steady_clock::now();
     while (GlobalState::parsedMessages < NUM_MESSAGES) {
         ssize_t nbytes = recv(sockfd, buf, sizeof(buf) - 1, 0);
         if (nbytes < 0) {
@@ -70,6 +68,15 @@ int main() {
         parseMessage(buf, nbytes);
         fflush(stdout);
     }
+    auto end = std::chrono::steady_clock::now();
+    long long time_taken = std::chrono::duration_cast<std::chrono::nanoseconds>(end - now).count();
     setsockopt(sockfd, IPPROTO_IP, IP_DROP_MEMBERSHIP, (void*)&mcastMship, sizeof(mcastMship));
     close(sockfd);
+    std::cout << "=== RESULTS ===\n";
+    printf("Messages parsed: %d\n", NUM_MESSAGES);
+    printf("Time taken: %lld\n", time_taken);
+    printf("Time taken per message: %lld\n", time_taken/NUM_MESSAGES);
+    for (uint32_t el : GlobalState::missed) {
+        std::cout << el << std::endl;
+    }
 }

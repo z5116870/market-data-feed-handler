@@ -1,5 +1,5 @@
-#include "../../parse.h"
-#include "../../helper.h"
+#include "../src/parse.h"
+#include "../src/helper.h"
 #include <iostream>
 #include <cassert>
 #include <cstdint>

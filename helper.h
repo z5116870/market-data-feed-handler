@@ -9,7 +9,7 @@
 inline uint64_t readTimestamp(const char* buf, size_t &offset) {
     uint64_t tmp = 0;
     // first 2 MSBs are empty (all 0), then store the timestamp value
-    std::memcpy(std::bit_cast<char*>(&tmp) + 2, buf + offset, 6); // upper 6 bytes
+    std::memcpy(reinterpret_cast<char*>(&tmp) + 2, buf + offset, 6); // upper 6 bytes
     offset += 6;
     return ntohll(tmp); // convert to host byte order
 }
@@ -18,7 +18,7 @@ inline uint64_t readTimestamp(const char* buf, size_t &offset) {
 // Similar to readTimestamp, but this is for any number of 8 bytes
 inline uint64_t read8Bytes(const char* buf, size_t &offset) {
     uint64_t tmp = 0;
-    std::memcpy(std::bit_cast<char*>(&tmp), buf + offset, 8);
+    std::memcpy(reinterpret_cast<char*>(&tmp), buf + offset, 8);
     offset += 8;
     return ntohll(tmp); // convert to host byte order
 } 
@@ -26,7 +26,7 @@ inline uint64_t read8Bytes(const char* buf, size_t &offset) {
 // Same but for 4 bytes
 inline uint32_t read4Bytes(const char* buf, size_t &offset) {
     uint32_t tmp = 0;
-    std::memcpy(std::bit_cast<char*>(&tmp), buf + offset, 4);
+    std::memcpy(reinterpret_cast<char*>(&tmp), buf + offset, 4);
     offset += 4;
     return ntohl(tmp); // convert to host byte order
 } 

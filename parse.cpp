@@ -7,6 +7,14 @@
 // Logger for printing parsed messages
 static const Logger logger = LogLevel::RAW;
 
+inline void checkAndSetGlobalState(const uint32_t &seqNo) {
+    if (GlobalState::lastSequenceNumber + 1 != seqNo && GlobalState::lastSequenceNumber != 0) {
+        GlobalState::lostMessages += seqNo - GlobalState::lastSequenceNumber - 1;
+        std::cout << "abcde** LOST: \n" << seqNo - GlobalState::lastSequenceNumber << std::endl;
+    }
+    GlobalState::lastSequenceNumber = seqNo;
+} 
+
 // Parsing loop, run for each syscall to obtain data from socket receive buffer
  void parseMessage(const char* buf, const ssize_t &len) {
     ssize_t pos = 0;
@@ -26,6 +34,7 @@ static const Logger logger = LogLevel::RAW;
             case 'C': pos += parseOrderCancelled(buf + pos, orderCancelMsg); break;
         }
         std::cout << std::endl;
+        GlobalState::parsedMessages++;
     }
 }
 
@@ -62,6 +71,8 @@ ssize_t parseTrade(const char *buf, TradeMessage &t) {
     logger.log(t);
     // Get latency
     getDelta(t.timestamp);
+    // Set last sequence number
+    checkAndSetGlobalState(t.sequenceNumber);
     return MessageSize::Trade;
 }
 
@@ -85,6 +96,8 @@ ssize_t parseOrderExecuted(const char *buf, OrderExecutedMessage &t) {
     logger.log(t);
     // Get latency
     getDelta(t.timestamp);
+    // Check and set last sequence number
+    checkAndSetGlobalState(t.sequenceNumber);
     return MessageSize::OrderExecuted;
 }
 
@@ -114,6 +127,8 @@ ssize_t parseOrderWithPrice(const char *buf, OrderExecutedWithPriceMessage &t) {
     logger.log(t);
     // Get latency
     getDelta(t.timestamp);
+    // Set last sequence number
+    checkAndSetGlobalState(t.sequenceNumber);
     return MessageSize::OrderExecutedWithPrice;
 }
 
@@ -134,6 +149,8 @@ ssize_t parseSystemEvent(const char *buf, SystemEventMessage &t) {
     logger.log(t);
     // Get latency
     getDelta(t.timestamp);
+    // Set last sequence number
+    checkAndSetGlobalState(t.sequenceNumber);
     return MessageSize::SystemEvent;
 }
 
@@ -157,6 +174,8 @@ ssize_t parseOrderCancelled(const char *buf, OrderCancelMessage &t) {
     logger.log(t);
     // Get latency
     getDelta(t.timestamp);
+    // Set last sequence number
+    checkAndSetGlobalState(t.sequenceNumber);
     return MessageSize::OrderCancelled;
 }
 

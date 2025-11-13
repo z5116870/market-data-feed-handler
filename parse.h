@@ -4,7 +4,14 @@
 #include "helper.h"
 
 enum LogLevel {
-    VERBOSE = 1, RAW
+    VERBOSE = 1, RAW, OFF
+};
+
+struct GlobalState {
+    inline static uint32_t parsedMessages = 0;
+    inline static uint32_t lostMessages = 0;
+    inline static uint32_t lastSequenceNumber = 0;
+    inline static std::vector<uint32_t> missed; // really bad for memory if we dont use reserve()
 };
 
 enum MessageSize {

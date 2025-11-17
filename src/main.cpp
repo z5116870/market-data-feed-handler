@@ -3,7 +3,9 @@
 #include <stdio.h>
 #include <iostream>
 #include <unistd.h>
+#include <thread>
 #include "parse.h"
+#include "sequencer.h"
 #define MULTICAST_IP "239.1.1.1"
 #define PORT 30001
 #define LOG(x) std::cout << x << std::endl
@@ -59,7 +61,11 @@ int main() {
     
     std::cout << "LISTENING FOR MULTICAST TRAFFIC ON " << MULTICAST_IP << std::endl;
 
-    // 6. Receive traffic
+    // 6. Start timer thread for packet sequencer (for detecting losses when gaps opened in stream
+    // due to out-of-order messages)
+    std::thread gapTimerThread(gapTimer);
+
+    // 7. Receive traffic
     // align the buffer to the size of a cache
     alignas(64) char buf[1500];
     while (1) {

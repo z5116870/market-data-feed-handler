@@ -63,6 +63,7 @@ int main() {
 
     // 6. Start timer thread for packet sequencer (for detecting losses when gaps opened in stream
     // due to out-of-order messages)
+    GlobalState::timerIsRunning.store(true, std::memory_order_relaxed);
     std::thread gapTimerThread(gapTimer);
 
     // 7. Receive traffic
@@ -80,7 +81,12 @@ int main() {
         parseMessage(buf, nbytes);
         fflush(stdout);
     }
-    // 7. Leave the group and close
+
+    // 8. Stop the timer thread
+    GlobalState::timerIsRunning.store(false, std::memory_order_relaxed);
+    gapTimerThread.join();
+    
+    // 9. Leave the group and close
     setsockopt(sockfd, IPPROTO_IP, IP_DROP_MEMBERSHIP, (void*)&mcastMship, sizeof(mcastMship));
     close(sockfd);
 }

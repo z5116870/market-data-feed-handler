@@ -2,6 +2,7 @@
 #include <cstddef>
 #include <iostream>
 #include <atomic>
+#include <bitset>
 #include "helper.h"
 
 enum LogLevel {

@@ -3,9 +3,19 @@
 #include <cstddef>
 #include <cstring>
 #include <arpa/inet.h>
+#include <chrono>
 #include "parse.h"
 
-// Safely read 6-byte timestamp (network byte order) into aligned uint64_t
+// Convert network to host order 64bit (equivalent of ntohll)
+inline uint64_t ntohll(uint64_t &networkOrder) {
+    uint8_t *p = reinterpret_cast<uint8_t*>(&networkOrder);
+    uint64_t hostOrder = 0;
+    for(int i = 0; i < 8; i++)
+        hostOrder = hostOrder << 8 | p[i];
+    return hostOrder;
+    
+}
+
 inline uint64_t readTimestamp(const char* buf, size_t &offset) {
     uint64_t tmp = 0;
     // first 2 MSBs are empty (all 0), then store the timestamp value

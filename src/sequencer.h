@@ -59,13 +59,14 @@ inline void checkAndSetGlobalState(const uint32_t &seq) {
 
     // 3. seq > nextSeq (out-of-order)
     if (seq > GlobalState::nextSeq) {
-        // enter GAP_OPEN (can already be in this state, that just means more gaps)
+        // enter GAP_OPEN (can already be in this state, that just means more gaps, but the timer does not reset
+        // it runs on a separate thread and begins only if there is no gap currently open)
+        if (!GlobalState::gapExists) {
+            GlobalState::gapExists = true;
+            GlobalState::gapStartTime = std::chrono::steady_clock::now();
+        } 
         GlobalState::outOfOrderMessages++;
-        GlobalState::gapExists = true;
         GlobalState::seen[seq % WINDOW_SIZE] = 1;
-
-        // Begin gap timer (runs on a separate thread)
-        GlobalState::gapStartTime = std::chrono::steady_clock::now();
     }
 }
 

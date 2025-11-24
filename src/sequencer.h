@@ -2,7 +2,7 @@
 #pragma once
 #include <thread>
 #include "parse.h"
-constexpr auto GAP_TIMEOUT = std::chrono::microseconds(10);
+constexpr auto GAP_TIMEOUT = std::chrono::milliseconds(5);
 
 inline void handleGapTimeout() {
     // If the flag is not set, just return
@@ -47,8 +47,10 @@ inline void checkAndSetGlobalState(const uint32_t &seq) {
         // if we are in GAP_OPEN state
         if (GlobalState::gapExists) {
             // ADVANCE_DRAIN
-            while(GlobalState::seen[GlobalState::nextSeq % WINDOW_SIZE]) GlobalState::nextSeq++;
-
+            while(GlobalState::seen[GlobalState::nextSeq % WINDOW_SIZE]) {
+                GlobalState::nextSeq++;
+                GlobalState::parsedMessages++;
+            }
             // Does the gap still exist?
             if (GlobalState::nextSeq > GlobalState::highestSeq) GlobalState::gapExists = false;
         }

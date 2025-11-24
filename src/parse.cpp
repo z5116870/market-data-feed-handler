@@ -29,6 +29,12 @@ static const Logger logger = LogLevel::RAW;
         }
         std::cout << std::endl;
     }
+    std::cout << GlobalState::parsedMessages << std::endl;
+    std::cout << GlobalState::lostMessages << std::endl;
+    std::cout << GlobalState::outOfOrderMessages << std::endl;
+    std::cout << GlobalState::nextSeq << std::endl;
+    std::cout << GlobalState::highestSeq << std::endl;
+    std::cout << GlobalState::duplicates <<std::endl;
 }
 
 ssize_t parseTrade(const char *buf, TradeMessage &t) {

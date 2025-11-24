@@ -60,6 +60,7 @@ int main() {
 
     std::cout << "LISTENING FOR FRAMES ON " << nic << std::endl;
 
+    GlobalState::timerIsRunning.store(true, std::memory_order_relaxed);
     std::thread gapTimerThread(gapTimer);
 
     uint32_t NUM_MESSAGES = 100000;

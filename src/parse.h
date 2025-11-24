@@ -11,7 +11,7 @@ enum LogLevel {
 
 // Size of the sliding window used for determining whether packets were received
 // out of order, as duplicates or lost
-constexpr size_t WINDOW_SIZE = 65536;
+constexpr size_t WINDOW_SIZE = 8*1024*1024; //8MB window size
 
 // Global state struct, used for tracking parsing program metrics (aligned to cache block size)
 struct alignas(64) GlobalState {

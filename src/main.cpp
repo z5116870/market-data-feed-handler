@@ -112,8 +112,6 @@ int main() {
     // 8. Stop the timer thread
     GlobalState::timerIsRunning.store(false, std::memory_order_relaxed);
     gapTimerThread.join();
-    
-    // 9. Leave the group and close
-    setsockopt(sockfd, IPPROTO_IP, IP_DROP_MEMBERSHIP, (void*)&mcastMship, sizeof(mcastMship));
+
     close(sockfd);
 }

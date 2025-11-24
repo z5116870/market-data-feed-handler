@@ -26,7 +26,7 @@ int main() {
         return 1;
     }
 
-    std::cout << "Found interface: " << nic;
+    std::cout << "Found interface: " << nic << std::endl;
 
     // 2. Get the interface index
     uint32_t index = if_nametoindex(nic.c_str());
@@ -57,13 +57,20 @@ int main() {
         return 1;
     }
 
+    // 5. Set max buffer for helping with benchmarking
+    int rcvbuf = 64 * 1024;
+    if (setsockopt(sockfd, SOL_SOCKET, SO_RCVBUF, &rcvbuf, sizeof(rcvbuf)) < 0) {
+        perror("Failed to set rcvbuf size\n");
+        return 1;
+    }
+
 
     std::cout << "LISTENING FOR FRAMES ON " << nic << std::endl;
 
     GlobalState::timerIsRunning.store(true, std::memory_order_relaxed);
     std::thread gapTimerThread(gapTimer);
 
-    uint32_t NUM_MESSAGES = 100000;
+    uint32_t NUM_MESSAGES = 10000000;
     alignas(64) char buf[2048];
     auto now = std::chrono::steady_clock::now();
     while (GlobalState::parsedMessages < NUM_MESSAGES) {

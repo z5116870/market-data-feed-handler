@@ -1,28 +1,22 @@
 #include <iostream>
 #include "parse.h"
 #include "helper.h"
+#include "sequencer.h"
 #include <bit>
 #include <chrono>
 
 // Logger for printing parsed messages
 static const Logger logger = LogLevel::RAW;
 
-inline void checkAndSetGlobalState(const uint32_t &seqNo) {
-    if (GlobalState::lastSequenceNumber + 1 != seqNo && GlobalState::lastSequenceNumber != 0) {
-        GlobalState::lostMessages += seqNo - GlobalState::lastSequenceNumber - 1;
-        std::cout << "abcde** LOST: \n" << seqNo - GlobalState::lastSequenceNumber << std::endl;
-    }
-    GlobalState::lastSequenceNumber = seqNo;
-} 
-
 // Parsing loop, run for each syscall to obtain data from socket receive buffer
  void parseMessage(const char* buf, const ssize_t &len) {
     ssize_t pos = 0;
     char type;
 
-    // The "len" value is the length of bytes read by recv. This should be equal
-    // to near 1472 byte max, so we must go through the buffer and parse each
-    // ITCH message based on the first byte (messageType)
+    // The "len" value is the length of bytes read by recv. This should be at most
+    // 1472 bytes, so we must go through the buffer and parse each
+    // ITCH message based on the first byte (messageType) which also tells us the message
+    // size (this is static, determined by the ITCH protocol specification)
     while(pos < len) {
         type = buf[pos];
         switch(type) {
@@ -34,7 +28,6 @@ inline void checkAndSetGlobalState(const uint32_t &seqNo) {
             case 'C': pos += parseOrderCancelled(buf + pos, orderCancelMsg); break;
         }
         std::cout << std::endl;
-        GlobalState::parsedMessages++;
     }
 }
 

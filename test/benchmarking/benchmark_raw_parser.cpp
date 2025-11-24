@@ -10,8 +10,9 @@
 #include <linux/ip.h>
 #include <linux/udp.h>
 #include <cstring>
-#include "parse.h"
-#include "sequencer.h"
+#include <chrono>
+#include "../../src/parse.h"
+#include "../../src/sequencer.h"
 #define MULTICAST_IP "239.1.1.1"
 #define PORT 30001
 #define LOG(x) std::cout << x << std::endl
@@ -59,28 +60,19 @@ int main() {
 
     std::cout << "LISTENING FOR FRAMES ON " << nic << std::endl;
 
-    // 6. Start timer thread for packet sequencer (for detecting losses when gaps opened in stream
-    // due to out-of-order messages)
     std::thread gapTimerThread(gapTimer);
 
-    // 7. Receive traffic
-    // align the buffer to the size of a cache
+    uint32_t NUM_MESSAGES = 100000;
     alignas(64) char buf[2048];
-    while (1) {
-        // Each call to recv reads from the socket receive buffer populated by the kernel
-        // which loads entire ethernet frame (directly from the kernel RX buffer)
+    auto now = std::chrono::steady_clock::now();
+    while (GlobalState::parsedMessages < NUM_MESSAGES) {
         ssize_t nbytes = recv(sockfd, buf, sizeof(buf) - 1, 0);
         if (nbytes < 0) {
             perror("Error receiving data, terminating.");
             break;
         }
-
-        // Now buf contains the read ethernet frame, we must decode it and obtain the UDP payload
-        // We dont need to parse the dest MAC because its already encoded in the dest IP (01:00:5e:01:01:01 => 239.1.1.1)
-        // So we can skip the ethernet header (14 bytes) and go directly to the ip header
         iphdr* ip_header = (iphdr*)(buf + 14);
 
-        // Now we can filter by the dest IP addr (should be 239.1.1.1)
         uint32_t dest_ip_addr = ip_header->daddr;
         if (dest_ip_addr != inet_addr(MULTICAST_IP)) continue; // Compare the binary network byte order of the dest addr in the IP packet and the known multicast IP
 
@@ -105,10 +97,23 @@ int main() {
         // Then we can get the UDP payload size by taking away the UDP header from that value
         ssize_t payload_length = ntohs(ip_header->tot_len) - ip_header_length - 8;
         parseMessage(payload, payload_length);
+        handleGapTimeout();
         fflush(stdout);
     }
     GlobalState::timerIsRunning.store(false, std::memory_order_relaxed);
     gapTimerThread.join();
-
+    auto end = std::chrono::steady_clock::now();
+    long long time_taken = std::chrono::duration_cast<std::chrono::nanoseconds>(end - now).count();
+    std::chrono::duration<double> time_taken_sec = end - now;
     close(sockfd);
+
+    // RESULTS
+    std::cout << "=== RESULTS ===\n";
+    printf("Messages parsed: %d\n", NUM_MESSAGES);
+    printf("Messages lost: %u\n", GlobalState::lostMessages);
+    printf("Messages received out of order: %u\n", GlobalState::outOfOrderMessages);
+    printf("Messages recieved as duplicates: %u\n", GlobalState::duplicates);
+    printf("Time taken: %lld\n", time_taken);
+    printf("Time taken per message: %lld\n", time_taken/NUM_MESSAGES);
+    printf("Throughput: %f messages/sec\n", NUM_MESSAGES / time_taken_sec.count());
 }

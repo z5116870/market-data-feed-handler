@@ -66,8 +66,8 @@ int main() {
 
     GlobalState::timerIsRunning.store(true, std::memory_order_relaxed);
     std::thread gapTimerThread(gapTimer);
-    alignas(64) char buf[1500];
-    uint32_t NUM_MESSAGES = 100000;
+    alignas(64) char buf[2048];
+    uint32_t NUM_MESSAGES = 1000000;
     auto now = std::chrono::steady_clock::now();
     while (GlobalState::parsedMessages < NUM_MESSAGES) {
         ssize_t nbytes = recv(sockfd, buf, sizeof(buf) - 1, 0);

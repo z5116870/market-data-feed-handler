@@ -98,8 +98,9 @@ int main() {
 
     // 8. Loop over the shared ring buffer in modulo pattern so we continuously iterate
      // Ensure the frame index is always within the frame count of the shared ring buffer
-    uint32_t frame_num = 0;
-    for(uint32_t frame_num = 0; ;frame_num = (frame_num + 1) % num_of_frames)
+    uint32_t mcast_ip = inet_addr(MULTICAST_IP);
+    uint16_t dest_port = htons(PORT);
+    for(uint32_t frame_num = 0; ;frame_num = (frame_num + 1) & (num_of_frames - 1))
     {
         // Get the TPACKET frame for the current frame number and get its header
         auto *frame_header = (tpacket_hdr *)((uint8_t*)ringPtr + (frame_num * frame_size));
@@ -107,17 +108,12 @@ int main() {
             // If the kernel has not yet readied this frame (i.e. status should be TP_STATUS_USER
             // then simply yield the CPU and let another process/thread take over
             // TODO: BE MORE SELFISH
-            sched_yield();
             continue;
         }
 
         // Get the ethernet frame from the TPACKET frame
         // Add the offset of the ethernet header to the frame_header to get a pointer to the ethernet header
         char *buf = (char *)frame_header + frame_header->tp_mac;
-        if (frame_header->tp_len < 14) {
-            releaseFrame(frame_header);
-            continue;
-        }
 
         // Now buf contains the read ethernet frame, we must decode it and obtain the UDP payload
         // We dont need to parse the dest MAC because its already encoded in the dest IP (01:00:5e:01:01:01 => 239.1.1.1)
@@ -126,7 +122,7 @@ int main() {
 
         // Now we can filter by the dest IP addr (should be 239.1.1.1)
         uint32_t dest_ip_addr = ip_header->daddr;
-        if (dest_ip_addr != inet_addr(MULTICAST_IP)) {
+        if (dest_ip_addr != mcast_ip) {
             releaseFrame(frame_header);
             continue; // Compare the binary network byte order of the dest addr in the IP packet and the known multicast IP
         }
@@ -145,7 +141,7 @@ int main() {
         // Now get the UDP header and filter by the 30001 port
         udphdr* udp_header = (udphdr*)(buf + 14 + ip_header_length);
         int udp_port = udp_header->dest;
-        if (udp_port != htons(PORT)) {
+        if (udp_port != dest_port) {
             releaseFrame(frame_header); 
             continue; 
         }
@@ -156,12 +152,8 @@ int main() {
         // And determine the size using the IP header. The IP payload size is equal to the total length field (16 bit) - IHL (4 bit) * 4, which we already have.
         // Then we can get the UDP payload size by taking away the UDP header from that value
         ssize_t payload_length = ntohs(ip_header->tot_len) - ip_header_length - 8;
-        if (payload_length <= 0) {
-            releaseFrame(frame_header);
-            continue;
-        }
         parseMessage(payload, payload_length);
-        fflush(stdout);
+        handleGapTimeout();
 
         releaseFrame(frame_header);
     }

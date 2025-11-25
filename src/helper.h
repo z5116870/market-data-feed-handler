@@ -7,6 +7,7 @@
 #include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <linux/if_packet.h>
 #include <unistd.h>
 #include <net/if.h>
 #include "parse.h"
@@ -54,7 +55,7 @@ inline void getDelta(uint64_t timestamp) {
     auto since_midnight = now - midnight;
     uint64_t nano = duration_cast<nanoseconds>(since_midnight).count();
     uint64_t delta_ns = nano - timestamp;
-    std::cout << " | " << delta_ns << " ns";
+    //std::cout << " | " << delta_ns << " ns";
 }
 
 inline void nsToTimeStr(uint64_t ns_since_midnight, char *out) {
@@ -148,4 +149,9 @@ inline std::string getMulticastInterface(const char * mcast_ip_addr) {
     // Now the nic_data struct will have the interface name so we can return it
     return std::string(nic_data.ifr_ifrn.ifrn_name);
 
+}
+
+// Function for releasing the memory back to the kernel so it can overwrite it (in shared memory) with new incoming frames
+inline void releaseFrame(tpacket_hdr *hdr) {
+    hdr->tp_status = TP_STATUS_KERNEL;
 }

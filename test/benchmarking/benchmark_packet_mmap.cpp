@@ -11,8 +11,8 @@
 #include <linux/udp.h>
 #include <cstring>
 #include <sys/mman.h>
-#include "parse.h"
-#include "sequencer.h"
+#include "../../src/parse.h"
+#include "../../src/sequencer.h"
 #define MULTICAST_IP "239.1.1.1"
 #define PORT 30001
 #define LOG(x) std::cout << x << std::endl
@@ -20,8 +20,8 @@
 
 // PACKET_MMAP RING BUFFER CONSTS
 constexpr unsigned int frame_size = 2048;
-constexpr unsigned int num_of_frames = 4096;
-constexpr unsigned int frames_per_block = 16;
+constexpr unsigned int num_of_frames = 512;
+constexpr unsigned int frames_per_block = 8;
 
 int main() {
     // 1. Get the interface name used for the multicast IP
@@ -95,7 +95,8 @@ int main() {
     // due to out-of-order messages)
     GlobalState::timerIsRunning.store(true, std::memory_order_relaxed);
     std::thread gapTimerThread(gapTimer);
-
+    uint32_t NUM_MESSAGES = 10000000;
+    auto now = std::chrono::steady_clock::now();
     // 8. Loop over the shared ring buffer in modulo pattern so we continuously iterate
      // Ensure the frame index is always within the frame count of the shared ring buffer
     uint32_t mcast_ip = inet_addr(MULTICAST_IP);
@@ -156,11 +157,25 @@ int main() {
         handleGapTimeout();
 
         releaseFrame(frame_header);
+        if (GlobalState::parsedMessages > NUM_MESSAGES) break;
     }
 
-    // 8. Stop the timer thread
     GlobalState::timerIsRunning.store(false, std::memory_order_relaxed);
     gapTimerThread.join();
-    munmap(ringPtr, mmap_len); // Unmap the shared memory to release it
+    auto end = std::chrono::steady_clock::now();
+    long long time_taken = std::chrono::duration_cast<std::chrono::nanoseconds>(end - now).count();
+    std::chrono::duration<double> time_taken_sec = end - now;
     close(sockfd);
+
+    // RESULTS
+    std::cout << "=== RESULTS ===\n";
+    printf("Messages parsed: %d\n", NUM_MESSAGES);
+    printf("Messages lost: %u\n", GlobalState::lostMessages);
+    printf("Messages received out of order: %u\n", GlobalState::outOfOrderMessages);
+    printf("Messages recieved as duplicates: %u\n", GlobalState::duplicates);
+    printf("Time taken: %lld\n", time_taken);
+    printf("Time taken per message: %lld\n", time_taken/NUM_MESSAGES);
+    printf("Throughput: %f messages/sec\n", NUM_MESSAGES / time_taken_sec.count());
+
+    munmap(ringPtr, mmap_len); // Unmap the shared memory to release it
 }

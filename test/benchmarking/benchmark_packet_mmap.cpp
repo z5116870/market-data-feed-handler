@@ -11,8 +11,8 @@
 #include <linux/udp.h>
 #include <cstring>
 #include <sys/mman.h>
-#include "parse.h"
-#include "sequencer.h"
+#include "../../src/parse.h"
+#include "../../src/sequencer.h"
 #define MULTICAST_IP "239.1.1.1"
 #define PORT 30001
 #define LOG(x) std::cout << x << std::endl
@@ -20,8 +20,8 @@
 
 // PACKET_MMAP RING BUFFER CONSTS
 constexpr unsigned int frame_size = 2048;
-constexpr unsigned int num_of_frames = 4096;
-constexpr unsigned int frames_per_block = 16;
+constexpr unsigned int num_of_frames = 512;
+constexpr unsigned int frames_per_block = 8;
 
 int main() {
     // 1. Get the interface name used for the multicast IP
@@ -95,7 +95,8 @@ int main() {
     // due to out-of-order messages)
     GlobalState::timerIsRunning.store(true, std::memory_order_relaxed);
     std::thread gapTimerThread(gapTimer);
-
+    uint32_t NUM_MESSAGES = 10000000;
+    auto now = std::chrono::steady_clock::now();
     // 8. Loop over the shared ring buffer in modulo pattern so we continuously iterate
      // Ensure the frame index is always within the frame count of the shared ring buffer
     uint32_t frame_num = 0;
@@ -107,17 +108,16 @@ int main() {
             // If the kernel has not yet readied this frame (i.e. status should be TP_STATUS_USER
             // then simply yield the CPU and let another process/thread take over
             // TODO: BE MORE SELFISH
-            sched_yield();
             continue;
         }
 
         // Get the ethernet frame from the TPACKET frame
         // Add the offset of the ethernet header to the frame_header to get a pointer to the ethernet header
         char *buf = (char *)frame_header + frame_header->tp_mac;
-        if (frame_header->tp_len < 14) {
-            releaseFrame(frame_header);
-            continue;
-        }
+        // if (frame_header->tp_len < 14) {
+        //     releaseFrame(frame_header);
+        //     continue;
+        // }
 
         // Now buf contains the read ethernet frame, we must decode it and obtain the UDP payload
         // We dont need to parse the dest MAC because its already encoded in the dest IP (01:00:5e:01:01:01 => 239.1.1.1)
@@ -156,19 +156,34 @@ int main() {
         // And determine the size using the IP header. The IP payload size is equal to the total length field (16 bit) - IHL (4 bit) * 4, which we already have.
         // Then we can get the UDP payload size by taking away the UDP header from that value
         ssize_t payload_length = ntohs(ip_header->tot_len) - ip_header_length - 8;
-        if (payload_length <= 0) {
-            releaseFrame(frame_header);
-            continue;
-        }
+        // if (payload_length <= 0) {
+        //     releaseFrame(frame_header);
+        //     continue;
+        // }
         parseMessage(payload, payload_length);
+        handleGapTimeout();
         fflush(stdout);
 
         releaseFrame(frame_header);
+        if (GlobalState::parsedMessages > NUM_MESSAGES) break;
     }
 
-    // 8. Stop the timer thread
     GlobalState::timerIsRunning.store(false, std::memory_order_relaxed);
     gapTimerThread.join();
-    munmap(ringPtr, mmap_len); // Unmap the shared memory to release it
+    auto end = std::chrono::steady_clock::now();
+    long long time_taken = std::chrono::duration_cast<std::chrono::nanoseconds>(end - now).count();
+    std::chrono::duration<double> time_taken_sec = end - now;
     close(sockfd);
+
+    // RESULTS
+    std::cout << "=== RESULTS ===\n";
+    printf("Messages parsed: %d\n", NUM_MESSAGES);
+    printf("Messages lost: %u\n", GlobalState::lostMessages);
+    printf("Messages received out of order: %u\n", GlobalState::outOfOrderMessages);
+    printf("Messages recieved as duplicates: %u\n", GlobalState::duplicates);
+    printf("Time taken: %lld\n", time_taken);
+    printf("Time taken per message: %lld\n", time_taken/NUM_MESSAGES);
+    printf("Throughput: %f messages/sec\n", NUM_MESSAGES / time_taken_sec.count());
+
+    munmap(ringPtr, mmap_len); // Unmap the shared memory to release it
 }

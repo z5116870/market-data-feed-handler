@@ -6,7 +6,7 @@
 #include <chrono>
 
 // Logger for printing parsed messages
-static const Logger logger = LogLevel::RAW;
+static const Logger logger = LogLevel::OFF;
 
 // Parsing loop, run for each syscall to obtain data from socket receive buffer
  void parseMessage(const char* buf, const ssize_t &len) {
@@ -27,7 +27,7 @@ static const Logger logger = LogLevel::RAW;
             case 'S': pos += parseSystemEvent(buf + pos, sysMsg); break;
             case 'C': pos += parseOrderCancelled(buf + pos, orderCancelMsg); break;
         }
-        std::cout << std::endl;
+        //std::cout << std::endl;
     }
 }
 

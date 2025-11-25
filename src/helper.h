@@ -55,7 +55,7 @@ inline void getDelta(uint64_t timestamp) {
     auto since_midnight = now - midnight;
     uint64_t nano = duration_cast<nanoseconds>(since_midnight).count();
     uint64_t delta_ns = nano - timestamp;
-    std::cout << " | " << delta_ns << " ns";
+    //std::cout << " | " << delta_ns << " ns";
 }
 
 inline void nsToTimeStr(uint64_t ns_since_midnight, char *out) {

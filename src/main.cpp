@@ -11,6 +11,7 @@
 #include <linux/udp.h>
 #include <cstring>
 #include <sys/mman.h>
+#include <poll.h>
 #include "parse.h"
 #include "sequencer.h"
 #define MULTICAST_IP "239.1.1.1"
@@ -19,9 +20,10 @@
 #define LOGREAD(x) std::cout << "READ " << x << " BYTES\n"
 
 // PACKET_MMAP RING BUFFER CONSTS
-constexpr unsigned int frame_size = 2048;
-constexpr unsigned int num_of_frames = 4096;
-constexpr unsigned int frames_per_block = 16;
+constexpr unsigned int BLOCK_SIZE = 131072;
+constexpr unsigned int FRAME_SIZE = 2048;
+constexpr unsigned int BLOCK_NR = 64;
+constexpr unsigned int FRAME_NR = (BLOCK_NR * BLOCK_SIZE) / FRAME_SIZE;
 
 int main() {
     // 1. Get the interface name used for the multicast IP
@@ -49,23 +51,29 @@ int main() {
         return 1;
     }
 
-    // 4. PACKET_MMAP RING BUFFER SETUP
+    // 4. PACKET_MMAP RING BUFFER SETUP (TPACKET_V3)
     // First up is creating a socket option to tell the kernel to write the frames from the bound NIC
-    // (happens below) to the new PACKET_RX_RING
-    tpacket_req req{};
-    req.tp_frame_size = frame_size;
-    req.tp_frame_nr = num_of_frames;
-    req.tp_block_size = frames_per_block * frame_size;
-    req.tp_block_nr = num_of_frames / frames_per_block;
-
-    unsigned int mmap_len = frame_size * num_of_frames;
+    // (happens below) to the new PACKET_RX_RING (similar to TPACKET_V1 except we need to set some block parameters)
+    tpacket_req3 req{};
+    req.tp_frame_size = FRAME_SIZE;
+    req.tp_frame_nr = FRAME_NR;
+    req.tp_block_size = BLOCK_SIZE;
+    req.tp_block_nr = BLOCK_NR;
+    req.tp_retire_blk_tov = 0;
+    req.tp_sizeof_priv = 0;
 
     if (setsockopt(sockfd, SOL_PACKET, PACKET_RX_RING, &req, sizeof(req)) < 0) {
         perror("Failed to create RX ring buffer on socket\n");
         return 1;
     }
 
-    // 5. Memory map the shared buffer into the MDFH process address space
+    int v = TPACKET_V3;
+
+    // 5. Enable TPACKET_V3 by setting the version as a socket option at the SOL_PACKET layer
+    setsockopt(sockfd, SOL_PACKET, PACKET_VERSION, &v, sizeof(v));
+
+    // 6. Memory map the shared buffer into the MDFH process address space
+     unsigned int mmap_len = BLOCK_SIZE * BLOCK_NR;
     void *ringPtr = mmap(
         nullptr,                    // Let the kernel choose any suitable VA in MDFH address space
         mmap_len,                   // Length of memory to map (exact size of the buffer)
@@ -75,7 +83,12 @@ int main() {
         0                           // Use offset = 0 because we want to start from the beginning of the buffer
     );
 
-    // 6. Because we are working at L2, bind refers to the interface on which
+    if (ringPtr == MAP_FAILED) {
+        perror("Failed (mmap()) to create shared ring buffer between user space and kernel\n");
+        return 1;
+    }
+
+    // 7. Because we are working at L2, bind refers to the interface on which
     // we want to receive the L2 frames. This requires the use a of sockaddr_ll structure
     // as opposed to sockaddr_in used at L4
     sockaddr_ll socket_link_layer{};
@@ -100,62 +113,83 @@ int main() {
      // Ensure the frame index is always within the frame count of the shared ring buffer
     uint32_t mcast_ip = inet_addr(MULTICAST_IP);
     uint16_t dest_port = htons(PORT);
-    for(uint32_t frame_num = 0; ;frame_num = (frame_num + 1) & (num_of_frames - 1))
+    for(uint32_t block_idx = 0; ;block_idx = (block_idx + 1) % BLOCK_NR)
     {
-        // Get the TPACKET frame for the current frame number and get its header
-        auto *frame_header = (tpacket_hdr *)((uint8_t*)ringPtr + (frame_num * frame_size));
-        if (!(frame_header->tp_status & TP_STATUS_USER)) {
-            // If the kernel has not yet readied this frame (i.e. status should be TP_STATUS_USER
-            // then simply yield the CPU and let another process/thread take over
-            // TODO: BE MORE SELFISH
+        // Get the TPACKET_V3 block pointer 
+        tpacket_block_desc *block_ptr = (tpacket_block_desc *)((uint8_t *)ringPtr + (block_idx * BLOCK_SIZE));
+        // If the kernel has not yet readied this block, simply check the next block by continuing the loop
+        if (!(block_ptr->hdr.bh1.block_status & TP_STATUS_USER)) {
+            
             continue;
         }
+        
+        // Use the block metadata to get a pointer to the first TPACKET_V3 packet in the block
+        uint32_t num_pkts = block_ptr->hdr.bh1.num_pkts;
+        uint32_t offset_to_first_pkt = block_ptr->hdr.bh1.offset_to_first_pkt;
 
-        // Get the ethernet frame from the TPACKET frame
-        // Add the offset of the ethernet header to the frame_header to get a pointer to the ethernet header
-        char *buf = (char *)frame_header + frame_header->tp_mac;
+        // Using simple pointer arithmetic, add the offset of the first packet to the block pointer to obtains
+        // the pointer to the first packet
+        tpacket3_hdr* current_packet = (tpacket3_hdr *)((uint8_t *)block_ptr + offset_to_first_pkt);
 
-        // Now buf contains the read ethernet frame, we must decode it and obtain the UDP payload
-        // We dont need to parse the dest MAC because its already encoded in the dest IP (01:00:5e:01:01:01 => 239.1.1.1)
-        // So we can skip the ethernet header (14 bytes) and go directly to the ip header
-        iphdr* ip_header = (iphdr*)(buf + 14);
+        // Iterate through every packet in the block
+        for (uint32_t i = 0; i < num_pkts; i++) {
+            // The tpacket3_hdr struct has extended fields compared to V1, one of which is the next tp_next_offset,
+            // which gives the offset of the next packet. We can use this to prefetch the next packet and load it into 
+            // the L1 cache so it is ready for processing immediately after this one, so no cycles are wasted. 
+            __builtin_prefetch((uint8_t*) current_packet + current_packet->tp_next_offset);
 
-        // Now we can filter by the dest IP addr (should be 239.1.1.1)
-        uint32_t dest_ip_addr = ip_header->daddr;
-        if (dest_ip_addr != mcast_ip) {
-            releaseFrame(frame_header);
-            continue; // Compare the binary network byte order of the dest addr in the IP packet and the known multicast IP
+            // ---------------------------------------------------------------------------------
+            // NOW WE PROCESS THE PACKET JUST AS WITH TPACKETV1
+            // ON A FAIL CONDITION, WE MOVE TO THE NEXT PACKET AND INCREMENT THE COUNTER
+            // ---------------------------------------------------------------------------------
+             // Get the ethernet frame from the TPACKET frame
+            // Add the offset of the ethernet header to the frame_header to get a pointer to the ethernet header
+            char *buf = (char *)current_packet + current_packet->tp_mac;
+
+            // Now buf contains the read ethernet frame, we must decode it and obtain the UDP payload
+            // We dont need to parse the dest MAC because its already encoded in the dest IP (01:00:5e:01:01:01 => 239.1.1.1)
+            // So we can skip the ethernet header (14 bytes) and go directly to the ip header
+            iphdr* ip_header = (iphdr*)(buf + 14);
+
+            // Now we can filter by the dest IP addr (should be 239.1.1.1)
+            // Compare the binary network byte order of the dest addr in the IP packet and the known multicast IP
+            uint32_t dest_ip_addr = ip_header->daddr;
+            if (dest_ip_addr != mcast_ip) {
+                current_packet = (tpacket3_hdr *)((uint8_t*) current_packet + current_packet->tp_next_offset);
+                continue; 
+            }
+            // We need the IP header length to determine the offset of the UDP header (IP header length is variable from 20-60 bytes)
+            // we cannot just conclude that there are no options and use 20 bytes, so we must find it through the header fields.
+            // The header length is determined by the internet header length (IHL) field (4 bit) which gives us its length in 32 bit words (4 bytes)
+            // so multiply this by 4 to get the length in bytes (using IPv6 would be much simpler here, as the header is a static 20 bytes)
+            int ip_header_length = ip_header->ihl * 4;
+
+            // Filter by protocol (must be UDP i.e. 17)
+            if (ip_header->protocol != 17) {
+                current_packet = (tpacket3_hdr *)((uint8_t*) current_packet + current_packet->tp_next_offset);
+                continue;
+            }
+
+            // Now get the UDP header and filter by the 30001 port
+            udphdr* udp_header = (udphdr*)(buf + 14 + ip_header_length);
+            int udp_port = udp_header->dest;
+            if (udp_port != dest_port) {
+                current_packet = (tpacket3_hdr *)((uint8_t*) current_packet + current_packet->tp_next_offset); 
+                continue; 
+            }
+
+            // FINALLY get a pointer to the UDP payload using basic pointer arithmetoc
+            char *payload = buf + 14 + ip_header_length + 8;
+
+            // And determine the size using the IP header. The IP payload size is equal to the total length field (16 bit) - IHL (4 bit) * 4, which we already have.
+            // Then we can get the UDP payload size by taking away the UDP header from that value
+            ssize_t payload_length = ntohs(ip_header->tot_len) - ip_header_length - 8;
+            parseMessage(payload, payload_length);
+            handleGapTimeout();
+            current_packet = (tpacket3_hdr *)((uint8_t*) current_packet + current_packet->tp_next_offset);
         }
-        // We need the IP header length to determine the offset of the UDP header (IP header length is variable from 20-60 bytes)
-        // we cannot just conclude that there are no options and use 20 bytes, so we must find it through the header fields.
-        // The header length is determined by the internet header length (IHL) field (4 bit) which gives us its length in 32 bit words (4 bytes)
-        // so multiply this by 4 to get the length in bytes (using IPv6 would be much simpler here, as the header is a static 20 bytes)
-        int ip_header_length = ip_header->ihl * 4;
 
-        // Filter by protocol (must be UDP i.e. 17)
-        if (ip_header->protocol != 17) {
-            releaseFrame(frame_header);
-            continue;
-        }
-
-        // Now get the UDP header and filter by the 30001 port
-        udphdr* udp_header = (udphdr*)(buf + 14 + ip_header_length);
-        int udp_port = udp_header->dest;
-        if (udp_port != dest_port) {
-            releaseFrame(frame_header); 
-            continue; 
-        }
-
-        // FINALLY get a pointer to the UDP payload using basic pointer arithmetoc
-        char *payload = buf + 14 + ip_header_length + 8;
-
-        // And determine the size using the IP header. The IP payload size is equal to the total length field (16 bit) - IHL (4 bit) * 4, which we already have.
-        // Then we can get the UDP payload size by taking away the UDP header from that value
-        ssize_t payload_length = ntohs(ip_header->tot_len) - ip_header_length - 8;
-        parseMessage(payload, payload_length);
-        handleGapTimeout();
-
-        releaseFrame(frame_header);
+        release_block(block_ptr);
     }
 
     // 8. Stop the timer thread

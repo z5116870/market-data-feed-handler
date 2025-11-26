@@ -11,23 +11,20 @@
 #include <linux/udp.h>
 #include <cstring>
 #include <sys/mman.h>
-#include <poll.h>
-#include "parse.h"
-#include "sequencer.h"
+#include "../../src/parse.h"
+#include "../../src/sequencer.h"
 #define MULTICAST_IP "239.1.1.1"
 #define PORT 30001
 #define LOG(x) std::cout << x << std::endl
 #define LOGREAD(x) std::cout << "READ " << x << " BYTES\n"
 
 // PACKET_MMAP RING BUFFER CONSTS
-constexpr unsigned int BLOCK_SIZE = 524288;
-constexpr unsigned int FRAME_SIZE = 1536;
+constexpr unsigned int BLOCK_SIZE = 131072;
+constexpr unsigned int FRAME_SIZE = 2048;
 constexpr unsigned int BLOCK_NR = 64;
 constexpr unsigned int FRAME_NR = (BLOCK_NR * BLOCK_SIZE) / FRAME_SIZE;
 
 int main() {
-    // 0. Pin to quiet core
-    pin_to_cpu(3);
     // 1. Get the interface name used for the multicast IP
     std::string nic = "enxc8a362d92729";
     if (nic.empty()) {
@@ -52,7 +49,6 @@ int main() {
         perror("Failed to initialize a socket.\n");
         return 1;
     }
-
     // 4. PACKET_MMAP RING BUFFER SETUP (TPACKET_V3)
     // First enable TPACKET_V3 by setting the version as a socket option at the SOL_PACKET layer
     int v = TPACKET_V3;
@@ -73,7 +69,7 @@ int main() {
     }
 
     // 6. Memory map the shared buffer into the MDFH process address space
-     unsigned int mmap_len = BLOCK_SIZE * BLOCK_NR;
+    unsigned int mmap_len = BLOCK_SIZE * BLOCK_NR;
     void *ringPtr = mmap(
         nullptr,                    // Let the kernel choose any suitable VA in MDFH address space
         mmap_len,                   // Length of memory to map (exact size of the buffer)
@@ -83,12 +79,7 @@ int main() {
         0                           // Use offset = 0 because we want to start from the beginning of the buffer
     );
 
-    if (ringPtr == MAP_FAILED) {
-        perror("Failed (mmap()) to create shared ring buffer between user space and kernel\n");
-        return 1;
-    }
-
-    // 7. Because we are working at L2, bind refers to the interface on which
+    // 6. Because we are working at L2, bind refers to the interface on which
     // we want to receive the L2 frames. This requires the use a of sockaddr_ll structure
     // as opposed to sockaddr_in used at L4
     sockaddr_ll socket_link_layer{};
@@ -108,24 +99,20 @@ int main() {
     // due to out-of-order messages)
     GlobalState::timerIsRunning.store(true, std::memory_order_relaxed);
     std::thread gapTimerThread(gapTimer);
-
+    uint32_t NUM_MESSAGES = 10000000;
+    auto now = std::chrono::steady_clock::now();
     // 8. Loop over the shared ring buffer in modulo pattern so we continuously iterate
      // Ensure the frame index is always within the frame count of the shared ring buffer
     uint32_t mcast_ip = inet_addr(MULTICAST_IP);
     uint16_t dest_port = htons(PORT);
-
-    // Create poll object so process doesnt busy wait, let kernel wake process when block ready
-    pollfd pfd{};
-    pfd.fd = sockfd;
-    pfd.events = POLLIN;
-    for(uint32_t block_idx = 0; ;block_idx = (block_idx + 1) % BLOCK_NR)
+     for(uint32_t block_idx = 0; ;block_idx = (block_idx + 1) % BLOCK_NR)
     {
         // Get the TPACKET_V3 block pointer 
         tpacket_block_desc *block_ptr = (tpacket_block_desc *)((uint8_t *)ringPtr + (block_idx * BLOCK_SIZE));
         // If the kernel has not yet readied this block, simply check the next block by continuing the loop
         if (!(block_ptr->hdr.bh1.block_status & TP_STATUS_USER)) {
-            poll(&pfd, 1, -1);
-             if (!(block_ptr->hdr.bh1.block_status & TP_STATUS_USER)) continue;
+
+            continue;
         }
         
         // Use the block metadata to get a pointer to the first TPACKET_V3 packet in the block
@@ -195,11 +182,25 @@ int main() {
         }
 
         release_block(block_ptr);
+        if (GlobalState::parsedMessages > NUM_MESSAGES) break;
     }
 
-    // 8. Stop the timer thread
     GlobalState::timerIsRunning.store(false, std::memory_order_relaxed);
     gapTimerThread.join();
-    munmap(ringPtr, mmap_len); // Unmap the shared memory to release it
+    auto end = std::chrono::steady_clock::now();
+    long long time_taken = std::chrono::duration_cast<std::chrono::nanoseconds>(end - now).count();
+    std::chrono::duration<double> time_taken_sec = end - now;
     close(sockfd);
+
+    // RESULTS
+    std::cout << "=== RESULTS ===\n";
+    printf("Messages parsed: %d\n", NUM_MESSAGES);
+    printf("Messages lost: %u\n", GlobalState::lostMessages);
+    printf("Messages received out of order: %u\n", GlobalState::outOfOrderMessages);
+    printf("Messages recieved as duplicates: %u\n", GlobalState::duplicates);
+    printf("Time taken: %lld\n", time_taken);
+    printf("Time taken per message: %lld\n", time_taken/NUM_MESSAGES);
+    printf("Throughput: %f messages/sec\n", NUM_MESSAGES / time_taken_sec.count());
+
+    munmap(ringPtr, mmap_len); // Unmap the shared memory to release it
 }

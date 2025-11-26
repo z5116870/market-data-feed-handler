@@ -11,6 +11,7 @@
 #include <linux/udp.h>
 #include <cstring>
 #include <sys/mman.h>
+#include <poll.h>
 #include "../../src/parse.h"
 #include "../../src/sequencer.h"
 #define MULTICAST_IP "239.1.1.1"
@@ -19,12 +20,14 @@
 #define LOGREAD(x) std::cout << "READ " << x << " BYTES\n"
 
 // PACKET_MMAP RING BUFFER CONSTS
-constexpr unsigned int BLOCK_SIZE = 131072;
+constexpr unsigned int BLOCK_SIZE = 262144;
 constexpr unsigned int FRAME_SIZE = 2048;
-constexpr unsigned int BLOCK_NR = 64;
+constexpr unsigned int BLOCK_NR = 128;
 constexpr unsigned int FRAME_NR = (BLOCK_NR * BLOCK_SIZE) / FRAME_SIZE;
 
 int main() {
+    // 0. Pin to quiet core
+    //pin_to_cpu(15);
     // 1. Get the interface name used for the multicast IP
     std::string nic = "enxc8a362d92729";
     if (nic.empty()) {
@@ -61,7 +64,7 @@ int main() {
     req.tp_frame_nr = FRAME_NR;
     req.tp_block_size = BLOCK_SIZE;
     req.tp_block_nr = BLOCK_NR;
-    req.tp_retire_blk_tov = 0;
+    req.tp_retire_blk_tov = 50;
     req.tp_sizeof_priv = 0;
     if (setsockopt(sockfd, SOL_PACKET, PACKET_RX_RING, &req, sizeof(req)) < 0) {
         perror("Failed to create RX ring buffer on socket\n");
@@ -74,7 +77,7 @@ int main() {
         nullptr,                    // Let the kernel choose any suitable VA in MDFH address space
         mmap_len,                   // Length of memory to map (exact size of the buffer)
         PROT_READ | PROT_WRITE,     // MDFH will read and write (altering the frames tp_status to TP_STATUS_KERNEL from TP_STATUS_USER)
-        MAP_SHARED,                 // Indicates memory is shared between kernel and user space
+        MAP_SHARED | MAP_LOCKED,                 // Indicates memory is shared between kernel and user space
         sockfd,                     // Pass in the shared buffer via the socket descriptor for the raw socket
         0                           // Use offset = 0 because we want to start from the beginning of the buffer
     );
@@ -105,14 +108,19 @@ int main() {
      // Ensure the frame index is always within the frame count of the shared ring buffer
     uint32_t mcast_ip = inet_addr(MULTICAST_IP);
     uint16_t dest_port = htons(PORT);
+
+    // Create poll object so process doesnt busy wait, let kernel wake process when block ready
+    pollfd pfd{};
+    pfd.fd = sockfd;
+    pfd.events = POLLIN;
      for(uint32_t block_idx = 0; ;block_idx = (block_idx + 1) % BLOCK_NR)
     {
         // Get the TPACKET_V3 block pointer 
         tpacket_block_desc *block_ptr = (tpacket_block_desc *)((uint8_t *)ringPtr + (block_idx * BLOCK_SIZE));
         // If the kernel has not yet readied this block, simply check the next block by continuing the loop
         if (!(block_ptr->hdr.bh1.block_status & TP_STATUS_USER)) {
-
-            continue;
+            poll(&pfd, 1, -1);
+            if (!(block_ptr->hdr.bh1.block_status & TP_STATUS_USER)) continue;
         }
         
         // Use the block metadata to get a pointer to the first TPACKET_V3 packet in the block

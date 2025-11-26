@@ -63,7 +63,7 @@ ssize_t parseTrade(const char *buf, TradeMessage &t) {
 
     logger.log(t);
     // Get latency
-    getDelta(t.timestamp);
+    //getDelta(t.timestamp);
     // Set last sequence number
     checkAndSetGlobalState(t.sequenceNumber);
     return MessageSize::Trade;
@@ -88,7 +88,7 @@ ssize_t parseOrderExecuted(const char *buf, OrderExecutedMessage &t) {
 
     logger.log(t);
     // Get latency
-    getDelta(t.timestamp);
+    //getDelta(t.timestamp);
     // Check and set last sequence number
     checkAndSetGlobalState(t.sequenceNumber);
     return MessageSize::OrderExecuted;
@@ -119,7 +119,7 @@ ssize_t parseOrderWithPrice(const char *buf, OrderExecutedWithPriceMessage &t) {
 
     logger.log(t);
     // Get latency
-    getDelta(t.timestamp);
+    //getDelta(t.timestamp);
     // Set last sequence number
     checkAndSetGlobalState(t.sequenceNumber);
     return MessageSize::OrderExecutedWithPrice;
@@ -141,7 +141,7 @@ ssize_t parseSystemEvent(const char *buf, SystemEventMessage &t) {
 
     logger.log(t);
     // Get latency
-    getDelta(t.timestamp);
+    //getDelta(t.timestamp);
     // Set last sequence number
     checkAndSetGlobalState(t.sequenceNumber);
     return MessageSize::SystemEvent;
@@ -166,7 +166,7 @@ ssize_t parseOrderCancelled(const char *buf, OrderCancelMessage &t) {
 
     logger.log(t);
     // Get latency
-    getDelta(t.timestamp);
+    //getDelta(t.timestamp);
     // Set last sequence number
     checkAndSetGlobalState(t.sequenceNumber);
     return MessageSize::OrderCancelled;

@@ -11,8 +11,8 @@
 #include <linux/udp.h>
 #include <cstring>
 #include <sys/mman.h>
-#include "../../src/parse.h"
-#include "../../src/sequencer.h"
+#include "../../../src/parse.h"
+#include "../../../src/sequencer.h"
 #define MULTICAST_IP "239.1.1.1"
 #define PORT 30001
 #define LOG(x) std::cout << x << std::endl
@@ -26,7 +26,6 @@ constexpr unsigned int FRAME_NR = (BLOCK_NR * BLOCK_SIZE) / FRAME_SIZE;
 
 int main() {
     // 0. Pin to quiet core
-    //pin_to_cpu(15);
     // 1. Get the interface name used for the multicast IP
     std::string nic = "enxc8a362d92729";
     if (nic.empty()) {

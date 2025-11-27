@@ -21,13 +21,13 @@
 
 // PACKET_MMAP RING BUFFER CONSTS
 constexpr unsigned int BLOCK_SIZE = 524288;
-constexpr unsigned int FRAME_SIZE = 1536;
+constexpr unsigned int FRAME_SIZE = 2048;
 constexpr unsigned int BLOCK_NR = 64;
 constexpr unsigned int FRAME_NR = (BLOCK_NR * BLOCK_SIZE) / FRAME_SIZE;
 
 int main() {
     // 0. Pin to quiet core
-    pin_to_cpu(3);
+    pinToCpu(3);
     // 1. Get the interface name used for the multicast IP
     std::string nic = "enxc8a362d92729";
     if (nic.empty()) {

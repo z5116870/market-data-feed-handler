@@ -13,29 +13,6 @@ enum LogLevel {
 // out of order, as duplicates or lost
 constexpr size_t WINDOW_SIZE = 8*1024*1024; //8MB window size
 
-// Global state struct, used for tracking parsing program metrics (aligned to cache block size)
-struct alignas(64) GlobalState {
-    // Metrics
-    inline static uint32_t parsedMessages = 0;
-    inline static uint32_t outOfOrderMessages = 0;
-    inline static uint32_t lostMessages = 0;
-    inline static uint32_t duplicates = 0;
-
-    // Sequencer
-    inline static uint32_t nextSeq = 0;
-    inline static uint32_t highestSeq = 0;
-    inline static bool gapExists = false;
-    // ring buffer (indexed using modulus operator) for tracking 
-    // most recently seen sequence numbers. Crucial for detecting duplicates, out of order packets
-    // and lost packets. The window begins with 
-    inline static std::bitset<WINDOW_SIZE> seen;
-
-    // Timer
-    inline static std::atomic<bool> gapTimeout = false; // flag set by timer thread, main thread reads this and flushes bitset
-    inline static std::atomic<bool> timerIsRunning = false; // bool for determining if timer is running
-    inline static std::chrono::steady_clock::time_point gapStartTime; // time the gap was first seen, does not change until timer expires
-};
-
 enum MessageSize {
     Trade = 36,
     OrderExecuted = 23,

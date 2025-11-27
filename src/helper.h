@@ -162,11 +162,3 @@ inline void releaseFrame(tpacket_hdr *hdr) {
 inline void release_block(tpacket_block_desc *hdr) {
     hdr->hdr.bh1.block_status = TP_STATUS_KERNEL;
 }
-
-inline void pin_to_cpu(int cpu_id) {
-    cpu_set_t mask;
-    CPU_ZERO(&mask);
-    CPU_SET(cpu_id, &mask);
-    sched_setaffinity(0, sizeof(mask), &mask);
-    std::cout << "Pinned to core " << cpu_id << std::endl;
-}

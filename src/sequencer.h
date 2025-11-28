@@ -67,7 +67,6 @@ inline void checkAndSetGlobalState(const uint32_t &seq) {
             // Does the gap still exist?
             if (GlobalState::nextSeq.load(std::memory_order_acquire) > GlobalState::highestSeq.load(std::memory_order_acquire)) {
                 GlobalState::gapExists.store(false, std::memory_order_release);
-                std::cout << "ADVANCE DRAINED\n";
             }
         }
 
@@ -107,7 +106,6 @@ inline void handleGapTimeout() {
     // Set the next expected sequence number to the highest + 1 (everything before
     // is now either parsed or lost)
     GlobalState::nextSeq.store(GlobalState::highestSeq.load(std::memory_order_acquire) + 1, std::memory_order_release);
-    std::cout << "[GAP TIMEOUT] Gap Closed!\n";
 }
 
 // Function run for the timer thread, sets gapTimerExpired flag in GlobalState
@@ -116,7 +114,7 @@ inline void handleGapTimeout() {
 inline void gapTimer() {
     // Pin this thread to an isolated CPU so it can spin wait to its hearts content
     std::this_thread::sleep_for(std::chrono::milliseconds(1));
-    pinToCpu(1);
+    pinToCpu(3);
     raisePriority();
     while (GlobalState::timerIsRunning.load(std::memory_order_acquire)) {
         // spin wait

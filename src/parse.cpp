@@ -55,7 +55,7 @@ ssize_t parseTrade(const char *buf, TradeMessage &t) {
     
     // 7. Stock name
     std::memcpy(&t.stock, buf + offset, 8);
-    t.stock[8] = '\0';
+    t.stock[7] = '\0';
     offset += 8;
     
     // 8. Price

@@ -112,7 +112,6 @@ inline std::string getMulticastInterface(const char * mcast_ip_addr) {
     // a neat trick to get the kernel to tell us what it would use if it were to actually
     // "connect" to the multicast IP.
     if (connect(sockForIp, (sockaddr*) &addr, sizeof(addr)) < 0) {
-        std::cout << "1\n";
         close(sockForIp);
         return "";
     }
@@ -122,7 +121,6 @@ inline std::string getMulticastInterface(const char * mcast_ip_addr) {
     socklen_t len = sizeof(multicastInterfaceIp);
     if (getsockname(sockForIp, (sockaddr*)&multicastInterfaceIp, &len)) {
         close(sockForIp);
-        std::cout << "2\n";
         return "";
     }
 
@@ -130,7 +128,6 @@ inline std::string getMulticastInterface(const char * mcast_ip_addr) {
     // that will also not be used for sending information, only querying NIC information.
     int sockForNICdata = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
     if (sockForNICdata < 0) {
-        std::cout << "3\n";
         return "";
     }
 
@@ -143,7 +140,6 @@ inline std::string getMulticastInterface(const char * mcast_ip_addr) {
     // Query kernel for getting interface name (SIOCGIFNAME) for the IP (in nic_data) and use the socket for communication 
     if (ioctl(sockForNICdata, SIOCGIFNAME, &nic_data) < 0) {
         close(sockForNICdata);
-        std::cout << "4\n";
         return "";
     }
     close(sockForNICdata);

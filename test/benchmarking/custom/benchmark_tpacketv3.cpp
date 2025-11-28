@@ -103,6 +103,11 @@ int main() {
     std::thread gapTimerThread(gapTimer);
     uint32_t NUM_MESSAGES = 10000000;
     auto now = std::chrono::steady_clock::now();
+
+    // Force the TLB to cache the seen array
+    for (size_t i = 0; i < WINDOW_SIZE; i += 1) {
+        GlobalState::seen[i].store(0, std::memory_order_relaxed);
+    }
     // 8. Loop over the shared ring buffer in modulo pattern so we continuously iterate
      // Ensure the frame index is always within the frame count of the shared ring buffer
     uint32_t mcast_ip = inet_addr(MULTICAST_IP);

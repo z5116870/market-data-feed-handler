@@ -16,13 +16,13 @@ struct alignas(64) GlobalState {
     inline static uint32_t duplicates = 0;
 
     // Sequencer
-    inline static std::atomic<uint32_t> nextSeq = 0;
+    inline static std::atomic<uint32_t> nextSeq = UINT32_MAX;
     inline static std::atomic<uint32_t> highestSeq = 0;
     inline static std::atomic<bool> gapExists = false;
     // ring buffer (indexed using modulus operator) for tracking 
     // most recently seen sequence numbers. Crucial for detecting duplicates, out of order packets
     // and lost packets. The window begins with 
-    inline static std::atomic<uint8_t> seen[WINDOW_SIZE];
+    inline static std::atomic<uint32_t> seen[WINDOW_SIZE];
 
     // Timer
     inline static std::atomic<bool> gapTimeout = false; // flag set by timer thread, main thread reads this and flushes bitset
@@ -32,11 +32,11 @@ struct alignas(64) GlobalState {
 inline void checkAndSetGlobalState(const uint32_t &seq) {
     // *** Refer to Sequencer state diagram for more information ***
     // Set highest sequence number
-    uint32_t expected = 0;
-    GlobalState::nextSeq.compare_exchange_strong(expected, seq);
+    uint32_t old = GlobalState::nextSeq.load(std::memory_order_acquire);
+    if (old == UINT32_MAX) GlobalState::nextSeq.store(seq, std::memory_order_release);
 
-    uint32_t old = GlobalState::highestSeq.load(std::memory_order_relaxed);
-    while(seq > old && GlobalState::highestSeq.compare_exchange_weak(old, seq, std::memory_order_relaxed)){};
+    uint32_t old = GlobalState::highestSeq.load(std::memory_order_acquire);
+    while(seq > old && GlobalState::highestSeq.compare_exchange_weak(old, seq, std::memory_order_release)){};
 
     // 1. seq < nextSeq (duplicate)
     if (seq < GlobalState::nextSeq.load(std::memory_order_acquire)) {
@@ -48,21 +48,22 @@ inline void checkAndSetGlobalState(const uint32_t &seq) {
     // 2. seq == nextSeq (in-order)
     if (seq == GlobalState::nextSeq.load(std::memory_order_acquire)) {
         // Set the sliding window bitset
-        GlobalState::seen[seq % WINDOW_SIZE].store(1, std::memory_order_release);
+        GlobalState::seen[seq % WINDOW_SIZE].store(seq, std::memory_order_release);
         GlobalState::parsedMessages++;
         GlobalState::nextSeq.fetch_add(1, std::memory_order_release);
         
         // if we are in GAP_OPEN state
         if (GlobalState::gapExists) {
             // ADVANCE_DRAIN
-            while(GlobalState::seen[GlobalState::nextSeq.load(std::memory_order_relaxed) % WINDOW_SIZE].load(std::memory_order_acquire)) {
+            while(GlobalState::seen[GlobalState::nextSeq.load(std::memory_order_acquire) % WINDOW_SIZE].load(std::memory_order_acquire) == GlobalState::nextSeq.load(std::memory_order_acquire)) {
                 GlobalState::nextSeq.fetch_add(1, std::memory_order_release);
                 GlobalState::parsedMessages++;
             }
             // Does the gap still exist?
-            old = GlobalState::nextSeq.load(std::memory_order_acquire);
-            uint32_t high = GlobalState::highestSeq.load(std::memory_order_acquire);
-            if (old > high) GlobalState::gapExists.store(false, std::memory_order_release);
+            if (GlobalState::nextSeq.load(std::memory_order_acquire) > GlobalState::highestSeq.load(std::memory_order_acquire)) {
+                GlobalState::gapExists.store(false, std::memory_order_release);
+                std::cout << "ADVANCE DRAINED";
+            }
         }
 
         // otherwise NO_GAP state, normal processing
@@ -77,7 +78,7 @@ inline void checkAndSetGlobalState(const uint32_t &seq) {
             GlobalState::gapExists.store(true, std::memory_order_release);
         } 
         GlobalState::outOfOrderMessages++;
-        GlobalState::seen[seq % WINDOW_SIZE].store(1, std::memory_order_release);
+        GlobalState::seen[seq % WINDOW_SIZE].store(seq, std::memory_order_release);
     }
 }
 
@@ -108,6 +109,7 @@ inline void handleGapTimeout() {
 // checks this flag to flush the seen bitset.
 inline void gapTimer() {
     // Pin this thread to an isolated CPU so it can spin wait to its hearts content
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
     pinToCpu(1);
     raisePriority();
     while (GlobalState::timerIsRunning.load(std::memory_order_acquire)) {
@@ -115,6 +117,7 @@ inline void gapTimer() {
         if (GlobalState::gapExists.load(std::memory_order_acquire)) {
             // Once the gap exists, start the timer
             std::this_thread::sleep_for(GAP_TIMEOUT);
+            GlobalState::gapTimeout.store(true, std::memory_order_release);
             // Timer has expired, handle the gap
             handleGapTimeout();
         };

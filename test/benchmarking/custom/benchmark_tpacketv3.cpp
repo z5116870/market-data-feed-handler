@@ -179,7 +179,11 @@ int main() {
             // Then we can get the UDP payload size by taking away the UDP header from that value
             ssize_t payload_length = ntohs(ip_header->tot_len) - ip_header_length - 8;
             parseMessage(payload, payload_length);
-            handleGapTimeout();
+
+            // Check if timeout occured
+            if (GlobalState::gapTimeout.exchange(false, std::memory_order_acq_rel)) {
+                handleGapTimeout();
+            }
             current_packet = (tpacket3_hdr *)((uint8_t*) current_packet + current_packet->tp_next_offset);
         }
 

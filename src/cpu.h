@@ -8,7 +8,7 @@ inline void pinToCpu(int cpu_id) {
     cpu_set_t mask;
     CPU_ZERO(&mask);
     CPU_SET(cpu_id, &mask);
-    if (sched_setaffinity(pthread_self(), sizeof(mask), &mask) != 0) {
+    if (sched_setaffinity(0, sizeof(mask), &mask) != 0) {
         printf("Failed to pin thread: %ld to core %d\n", pthread_self(), cpu_id);
         perror("pinToCpu()");
     }

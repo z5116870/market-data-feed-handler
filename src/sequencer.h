@@ -16,9 +16,10 @@ struct alignas(64) GlobalState {
     inline static uint32_t duplicates = 0;
 
     // Sequencer
-    inline static std::atomic<uint32_t> nextSeq = UINT32_MAX;
+    inline static std::atomic<uint32_t> nextSeq = UINT32_MAX; // sentinel, will be initialized on first packet
     inline static std::atomic<uint32_t> highestSeq = 0;
     inline static std::atomic<bool> gapExists = false;
+
     // ring buffer (indexed using modulus operator) for tracking 
     // most recently seen sequence numbers. Crucial for detecting duplicates, out of order packets
     // and lost packets. The window begins with 
@@ -31,12 +32,13 @@ struct alignas(64) GlobalState {
 
 inline void checkAndSetGlobalState(const uint32_t &seq) {
     // *** Refer to Sequencer state diagram for more information ***
-    // Set highest sequence number
-    uint32_t old = GlobalState::nextSeq.load(std::memory_order_acquire);
-    if (old == UINT32_MAX) GlobalState::nextSeq.store(seq, std::memory_order_release);
+    // Initialize nextSeq if this is the very first packet received
+    uint32_t expected = UINT32_MAX;
+    GlobalState::nextSeq.compare_exchange_strong(expected, seq);
 
-    uint32_t old = GlobalState::highestSeq.load(std::memory_order_acquire);
-    while(seq > old && GlobalState::highestSeq.compare_exchange_weak(old, seq, std::memory_order_release)){};
+    // Update highest sequence number seen
+    uint32_t oldHigh = GlobalState::highestSeq.load(std::memory_order_acquire);
+    while (seq > oldHigh && GlobalState::highestSeq.compare_exchange_weak(oldHigh, seq, std::memory_order_release)) {};
 
     // 1. seq < nextSeq (duplicate)
     if (seq < GlobalState::nextSeq.load(std::memory_order_acquire)) {
@@ -51,18 +53,20 @@ inline void checkAndSetGlobalState(const uint32_t &seq) {
         GlobalState::seen[seq % WINDOW_SIZE].store(seq, std::memory_order_release);
         GlobalState::parsedMessages++;
         GlobalState::nextSeq.fetch_add(1, std::memory_order_release);
-        
+
         // if we are in GAP_OPEN state
-        if (GlobalState::gapExists) {
+        if (GlobalState::gapExists.load(std::memory_order_acquire)) {
             // ADVANCE_DRAIN
-            while(GlobalState::seen[GlobalState::nextSeq.load(std::memory_order_acquire) % WINDOW_SIZE].load(std::memory_order_acquire) == GlobalState::nextSeq.load(std::memory_order_acquire)) {
+            while (GlobalState::seen[GlobalState::nextSeq.load(std::memory_order_acquire) % WINDOW_SIZE]
+                   .load(std::memory_order_acquire) == GlobalState::nextSeq.load(std::memory_order_acquire)) {
                 GlobalState::nextSeq.fetch_add(1, std::memory_order_release);
                 GlobalState::parsedMessages++;
             }
+
             // Does the gap still exist?
             if (GlobalState::nextSeq.load(std::memory_order_acquire) > GlobalState::highestSeq.load(std::memory_order_acquire)) {
                 GlobalState::gapExists.store(false, std::memory_order_release);
-                std::cout << "ADVANCE DRAINED";
+                std::cout << "ADVANCE DRAINED\n";
             }
         }
 
@@ -71,12 +75,12 @@ inline void checkAndSetGlobalState(const uint32_t &seq) {
     }
 
     // 3. seq > nextSeq (out-of-order)
-    if (seq > GlobalState::nextSeq.load(std::memory_order_acquire) ){
+    if (seq > GlobalState::nextSeq.load(std::memory_order_acquire)) {
         // enter GAP_OPEN (can already be in this state, that just means more gaps, but the timer does not reset
         // it runs on a separate thread and begins only if there is no gap currently open)
         if (!GlobalState::gapExists.load(std::memory_order_acquire)) {
             GlobalState::gapExists.store(true, std::memory_order_release);
-        } 
+        }
         GlobalState::outOfOrderMessages++;
         GlobalState::seen[seq % WINDOW_SIZE].store(seq, std::memory_order_release);
     }
@@ -90,17 +94,18 @@ inline void handleGapTimeout() {
     // Otherwise, flush the bitset. Iterate over the bitset and for every 
     // 0 found in between the low (nextSeq) and the high (highestSeq) increment
     // the lostMessages counter
-    for (uint32_t seq = GlobalState::nextSeq.load(std::memory_order_acquire); seq <= GlobalState::highestSeq.load(std::memory_order_acquire); ++seq) {
+    for (uint32_t seq = GlobalState::nextSeq.load(std::memory_order_acquire);
+         seq <= GlobalState::highestSeq.load(std::memory_order_acquire); ++seq) {
         if (!GlobalState::seen[seq % WINDOW_SIZE].load(std::memory_order_acquire)) GlobalState::lostMessages++;
     }
-    
+
     // Reset the timer and gap states
     GlobalState::gapExists.store(false, std::memory_order_release);
     GlobalState::gapTimeout.store(false, std::memory_order_release);
 
-    // Set the next expected seqeunce number to the highest + 1 (everything before
+    // Set the next expected sequence number to the highest + 1 (everything before
     // is now either parsed or lost)
-    GlobalState::nextSeq.store(GlobalState::highestSeq.load(std::memory_order_acquire) + 1);
+    GlobalState::nextSeq.store(GlobalState::highestSeq.load(std::memory_order_acquire) + 1, std::memory_order_release);
     std::cout << "[GAP TIMEOUT] Gap Closed!\n";
 }
 
@@ -120,6 +125,6 @@ inline void gapTimer() {
             GlobalState::gapTimeout.store(true, std::memory_order_release);
             // Timer has expired, handle the gap
             handleGapTimeout();
-        };
+        }
     }
 }

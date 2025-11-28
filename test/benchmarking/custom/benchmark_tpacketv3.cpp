@@ -26,6 +26,7 @@ constexpr unsigned int FRAME_NR = (BLOCK_NR * BLOCK_SIZE) / FRAME_SIZE;
 
 int main() {
     // 0. Pin to quiet core
+    pinToCpu(2);
     // 1. Get the interface name used for the multicast IP
     std::string nic = "enxc8a362d92729";
     if (nic.empty()) {

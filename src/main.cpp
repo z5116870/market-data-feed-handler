@@ -114,6 +114,10 @@ int main() {
     uint32_t mcast_ip = inet_addr(MULTICAST_IP);
     uint16_t dest_port = htons(PORT);
 
+    // Force the TLB to cache the seen array
+    for (size_t i = 0; i < WINDOW_SIZE; i += 1024) {
+        GlobalState::seen[i].store(0, std::memory_order_relaxed);
+    }
     // Create poll object so process doesnt busy wait, let kernel wake process when block ready
     pollfd pfd{};
     pfd.fd = sockfd;

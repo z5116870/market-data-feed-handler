@@ -32,7 +32,8 @@ struct alignas(64) GlobalState {
 
 inline void checkAndSetGlobalState(const uint32_t &seq) {
     // *** Refer to Sequencer state diagram for more information ***
-    // Initialize nextSeq if this is the very first packet received
+    // Initialize nextSeq if this is the very first packet received (nextSeq is set to UIN32_MAX on init)
+    // Branch prediction penalties amortized with extending runtime
     uint32_t expected = UINT32_MAX;
     GlobalState::nextSeq.compare_exchange_strong(expected, seq);
 
@@ -50,7 +51,7 @@ inline void checkAndSetGlobalState(const uint32_t &seq) {
     // 2. seq == nextSeq (in-order)
     if (seq == GlobalState::nextSeq.load(std::memory_order_acquire)) {
         // Set the sliding window bitset
-        GlobalState::seen[seq % WINDOW_SIZE].store(seq, std::memory_order_release);
+        GlobalState::seen[seq % WINDOW_SIZE].store(seq, std::memory_order_relaxed);
         GlobalState::parsedMessages++;
         GlobalState::nextSeq.fetch_add(1, std::memory_order_release);
 
@@ -95,8 +96,8 @@ inline void handleGapTimeout() {
     // 0 found in between the low (nextSeq) and the high (highestSeq) increment
     // the lostMessages counter
     for (uint32_t seq = GlobalState::nextSeq.load(std::memory_order_acquire);
-         seq <= GlobalState::highestSeq.load(std::memory_order_acquire); ++seq) {
-        if (!GlobalState::seen[seq % WINDOW_SIZE].load(std::memory_order_acquire)) GlobalState::lostMessages++;
+     seq <= GlobalState::highestSeq.load(std::memory_order_acquire); ++seq) {
+        if (GlobalState::seen[seq % WINDOW_SIZE].load(std::memory_order_acquire) != seq) GlobalState::lostMessages++;
     }
 
     // Reset the timer and gap states

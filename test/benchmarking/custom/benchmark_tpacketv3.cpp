@@ -11,8 +11,8 @@
 #include <linux/udp.h>
 #include <cstring>
 #include <sys/mman.h>
-#include "../../src/parse.h"
-#include "../../src/sequencer.h"
+#include "../../../src/parse.h"
+#include "../../../src/sequencer.h"
 #define MULTICAST_IP "239.1.1.1"
 #define PORT 30001
 #define LOG(x) std::cout << x << std::endl
@@ -26,7 +26,7 @@ constexpr unsigned int FRAME_NR = (BLOCK_NR * BLOCK_SIZE) / FRAME_SIZE;
 
 int main() {
     // 0. Pin to quiet core
-    //pin_to_cpu(15);
+    pinToCpu(2);
     // 1. Get the interface name used for the multicast IP
     std::string nic = "enxc8a362d92729";
     if (nic.empty()) {
@@ -103,6 +103,11 @@ int main() {
     std::thread gapTimerThread(gapTimer);
     uint32_t NUM_MESSAGES = 10000000;
     auto now = std::chrono::steady_clock::now();
+
+    // Force the TLB to cache the seen array
+    for (size_t i = 0; i < WINDOW_SIZE; i += 1) {
+        GlobalState::seen[i].store(0, std::memory_order_relaxed);
+    }
     // 8. Loop over the shared ring buffer in modulo pattern so we continuously iterate
      // Ensure the frame index is always within the frame count of the shared ring buffer
     uint32_t mcast_ip = inet_addr(MULTICAST_IP);
@@ -179,12 +184,15 @@ int main() {
             // Then we can get the UDP payload size by taking away the UDP header from that value
             ssize_t payload_length = ntohs(ip_header->tot_len) - ip_header_length - 8;
             parseMessage(payload, payload_length);
-            handleGapTimeout();
+
+            // Check if timeout occured
+            if (GlobalState::gapTimeout.exchange(false, std::memory_order_acq_rel)) {
+                handleGapTimeout();
+            }
             current_packet = (tpacket3_hdr *)((uint8_t*) current_packet + current_packet->tp_next_offset);
         }
 
         release_block(block_ptr);
-        if (GlobalState::parsedMessages > NUM_MESSAGES) break;
     }
 
     GlobalState::timerIsRunning.store(false, std::memory_order_relaxed);

@@ -21,13 +21,13 @@
 
 // PACKET_MMAP RING BUFFER CONSTS
 constexpr unsigned int BLOCK_SIZE = 524288;
-constexpr unsigned int FRAME_SIZE = 1536;
+constexpr unsigned int FRAME_SIZE = 2048;
 constexpr unsigned int BLOCK_NR = 64;
 constexpr unsigned int FRAME_NR = (BLOCK_NR * BLOCK_SIZE) / FRAME_SIZE;
 
 int main() {
     // 0. Pin to quiet core
-    pin_to_cpu(3);
+    pinToCpu(3);
     // 1. Get the interface name used for the multicast IP
     std::string nic = "enxc8a362d92729";
     if (nic.empty()) {
@@ -136,6 +136,23 @@ int main() {
         // the pointer to the first packet
         tpacket3_hdr* current_packet = (tpacket3_hdr *)((uint8_t *)block_ptr + offset_to_first_pkt);
 
+        for(uint32_t block_idx = 0; ;block_idx = (block_idx + 1) % BLOCK_NR)
+    {
+        // Get the TPACKET_V3 block pointer 
+        tpacket_block_desc *block_ptr = (tpacket_block_desc *)((uint8_t *)ringPtr + (block_idx * BLOCK_SIZE));
+        // If the kernel has not yet readied this block, simply check the next block by continuing the loop
+        if (!(block_ptr->hdr.bh1.block_status & TP_STATUS_USER)) {
+            continue;
+        }
+        
+        // Use the block metadata to get a pointer to the first TPACKET_V3 packet in the block
+        uint32_t num_pkts = block_ptr->hdr.bh1.num_pkts;
+        uint32_t offset_to_first_pkt = block_ptr->hdr.bh1.offset_to_first_pkt;
+
+        // Using simple pointer arithmetic, add the offset of the first packet to the block pointer to obtains
+        // the pointer to the first packet
+        tpacket3_hdr* current_packet = (tpacket3_hdr *)((uint8_t *)block_ptr + offset_to_first_pkt);
+
         // Iterate through every packet in the block
         for (uint32_t i = 0; i < num_pkts; i++) {
             // The tpacket3_hdr struct has extended fields compared to V1, one of which is the next tp_next_offset,
@@ -190,10 +207,15 @@ int main() {
             // Then we can get the UDP payload size by taking away the UDP header from that value
             ssize_t payload_length = ntohs(ip_header->tot_len) - ip_header_length - 8;
             parseMessage(payload, payload_length);
-            handleGapTimeout();
+
+            // Check if timeout occured
+            if (GlobalState::gapTimeout.exchange(false, std::memory_order_acq_rel)) {
+                handleGapTimeout();
+            }
             current_packet = (tpacket3_hdr *)((uint8_t*) current_packet + current_packet->tp_next_offset);
         }
 
+        // Release the block after processing
         release_block(block_ptr);
     }
 

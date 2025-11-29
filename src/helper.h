@@ -112,7 +112,6 @@ inline std::string getMulticastInterface(const char * mcast_ip_addr) {
     // a neat trick to get the kernel to tell us what it would use if it were to actually
     // "connect" to the multicast IP.
     if (connect(sockForIp, (sockaddr*) &addr, sizeof(addr)) < 0) {
-        std::cout << "1\n";
         close(sockForIp);
         return "";
     }
@@ -122,7 +121,6 @@ inline std::string getMulticastInterface(const char * mcast_ip_addr) {
     socklen_t len = sizeof(multicastInterfaceIp);
     if (getsockname(sockForIp, (sockaddr*)&multicastInterfaceIp, &len)) {
         close(sockForIp);
-        std::cout << "2\n";
         return "";
     }
 
@@ -130,7 +128,6 @@ inline std::string getMulticastInterface(const char * mcast_ip_addr) {
     // that will also not be used for sending information, only querying NIC information.
     int sockForNICdata = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
     if (sockForNICdata < 0) {
-        std::cout << "3\n";
         return "";
     }
 
@@ -143,7 +140,6 @@ inline std::string getMulticastInterface(const char * mcast_ip_addr) {
     // Query kernel for getting interface name (SIOCGIFNAME) for the IP (in nic_data) and use the socket for communication 
     if (ioctl(sockForNICdata, SIOCGIFNAME, &nic_data) < 0) {
         close(sockForNICdata);
-        std::cout << "4\n";
         return "";
     }
     close(sockForNICdata);
@@ -161,12 +157,4 @@ inline void releaseFrame(tpacket_hdr *hdr) {
 // Block equivalent of the above
 inline void release_block(tpacket_block_desc *hdr) {
     hdr->hdr.bh1.block_status = TP_STATUS_KERNEL;
-}
-
-inline void pin_to_cpu(int cpu_id) {
-    cpu_set_t mask;
-    CPU_ZERO(&mask);
-    CPU_SET(cpu_id, &mask);
-    sched_setaffinity(0, sizeof(mask), &mask);
-    std::cout << "Pinned to core " << cpu_id << std::endl;
 }

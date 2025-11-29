@@ -121,8 +121,6 @@ inline void gapTimer() {
             // Once the gap exists, start the timer
             std::this_thread::sleep_for(GAP_TIMEOUT);
             GlobalState::gapTimeout.store(true, std::memory_order_release);
-            // Timer has expired, handle the gap
-            handleGapTimeout();
         }
     }
 }

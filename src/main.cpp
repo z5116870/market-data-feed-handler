@@ -124,24 +124,6 @@ int main() {
         tpacket_block_desc *block_ptr = (tpacket_block_desc *)((uint8_t *)ringPtr + (block_idx * BLOCK_SIZE));
         // If the kernel has not yet readied this block, simply check the next block by continuing the loop
         if (!(block_ptr->hdr.bh1.block_status & TP_STATUS_USER)) {
-            poll(&pfd, 1, -1);
-             if (!(block_ptr->hdr.bh1.block_status & TP_STATUS_USER)) continue;
-        }
-        
-        // Use the block metadata to get a pointer to the first TPACKET_V3 packet in the block
-        uint32_t num_pkts = block_ptr->hdr.bh1.num_pkts;
-        uint32_t offset_to_first_pkt = block_ptr->hdr.bh1.offset_to_first_pkt;
-
-        // Using simple pointer arithmetic, add the offset of the first packet to the block pointer to obtains
-        // the pointer to the first packet
-        tpacket3_hdr* current_packet = (tpacket3_hdr *)((uint8_t *)block_ptr + offset_to_first_pkt);
-
-        for(uint32_t block_idx = 0; ;block_idx = (block_idx + 1) % BLOCK_NR)
-    {
-        // Get the TPACKET_V3 block pointer 
-        tpacket_block_desc *block_ptr = (tpacket_block_desc *)((uint8_t *)ringPtr + (block_idx * BLOCK_SIZE));
-        // If the kernel has not yet readied this block, simply check the next block by continuing the loop
-        if (!(block_ptr->hdr.bh1.block_status & TP_STATUS_USER)) {
             continue;
         }
         
@@ -215,8 +197,8 @@ int main() {
             current_packet = (tpacket3_hdr *)((uint8_t*) current_packet + current_packet->tp_next_offset);
         }
 
-        // Release the block after processing
         release_block(block_ptr);
+        if (GlobalState::parsedMessages > NUM_MESSAGES) break;
     }
 
     // 8. Stop the timer thread

@@ -113,7 +113,6 @@ inline void handleGapTimeout() {
 // checks this flag to flush the seen bitset.
 inline void gapTimer() {
     // Pin this thread to an isolated CPU so it can spin wait to its hearts content
-    std::this_thread::sleep_for(std::chrono::milliseconds(1));
     pinToCpu(3);
     raisePriority();
     while (GlobalState::timerIsRunning.load(std::memory_order_acquire)) {

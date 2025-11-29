@@ -193,7 +193,6 @@ int main() {
         }
 
         release_block(block_ptr);
-        if (GlobalState::parsedMessages > NUM_MESSAGES) break;
     }
 
     GlobalState::timerIsRunning.store(false, std::memory_order_relaxed);

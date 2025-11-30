@@ -54,7 +54,6 @@ inline void checkAndSetGlobalState(const uint32_t &seq) {
         GlobalState::seen[seq % WINDOW_SIZE].store(seq, std::memory_order_relaxed);
         GlobalState::parsedMessages++;
         GlobalState::nextSeq.fetch_add(1, std::memory_order_release);
-
         // if we are in GAP_OPEN state
         if (GlobalState::gapExists.load(std::memory_order_acquire)) {
             // ADVANCE_DRAIN

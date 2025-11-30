@@ -198,7 +198,6 @@ int main() {
         }
 
         release_block(block_ptr);
-        if (GlobalState::parsedMessages > NUM_MESSAGES) break;
     }
 
     // 8. Stop the timer thread

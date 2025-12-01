@@ -18,7 +18,7 @@ class SPSCQ {
 
 public:
     SPSCQ(size_t capacity): _capacity(capacity), _mask(capacity - 1) {
-        if (capacity & (capacity - 1) != 0) throw std::runtime_error("Failed to construct SPSCQ: Capacity must be a power of 2");
+        if ((capacity & (capacity - 1)) != 0) throw std::runtime_error("Failed to construct SPSCQ: Capacity must be a power of 2");
         if (capacity < 2) throw std::runtime_error("Failed to create SPSCQ: Capcity must be at least 2");
         _buf = std::make_unique<T[]>(capacity);
     }
@@ -63,7 +63,7 @@ public:
         // to the input item, then increment the write index (ensuring within 
         // capacity bounds)
         uint32_t w = _write_idx.load(std::memory_order_relaxed);
-        buf[w] = item;
+        _buf[w] = item;
         _write_idx.store((w + 1) & _mask, std::memory_order_release);
         return true;
     }
@@ -73,8 +73,9 @@ public:
         // Otherwise we can safely read from the buffer into the input item
         // and increment the read index (ensuring within capacity bounds)
         uint32_t r = _read_idx.load(std::memory_order_relaxed);
-        item = buf[r];
+        item = _buf[r];
         _read_idx.store((r + 1) & _mask, std::memory_order_release);
+        return true;
     }
 };
 

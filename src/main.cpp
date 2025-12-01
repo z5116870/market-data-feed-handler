@@ -11,9 +11,12 @@
 #include <linux/udp.h>
 #include <cstring>
 #include <sys/mman.h>
-#include <poll.h>
+#include <functional>
+#include <future>
 #include "parse.h"
 #include "sequencer.h"
+#include "queue.h"
+
 #define MULTICAST_IP "239.1.1.1"
 #define PORT 30001
 #define LOG(x) std::cout << x << std::endl
@@ -25,9 +28,14 @@ constexpr unsigned int FRAME_SIZE = 2048;
 constexpr unsigned int BLOCK_NR = 64;
 constexpr unsigned int FRAME_NR = (BLOCK_NR * BLOCK_SIZE) / FRAME_SIZE;
 
+// Multithreading
+constexpr size_t QUEUE_CAPACITY = 2048;
+
+int max_concurrency = std::thread::hardware_concurrency();
+
 int main() {
     // 0. Pin to quiet core
-    pinToCpu(3);
+    pinToCpu(--max_concurrency);
     // 1. Get the interface name used for the multicast IP
     std::string nic = "enxc8a362d92729";
     if (nic.empty()) {
@@ -101,23 +109,30 @@ int main() {
         return 1;
     }
 
-
     std::cout << "LISTENING FOR FRAMES ON " << nic << std::endl;
 
     // 7. Start timer thread for packet sequencer (for detecting losses when gaps opened in stream
     // due to out-of-order messages)
     GlobalState::timerIsRunning.store(true, std::memory_order_relaxed);
-    std::thread gapTimerThread(gapTimer);
+    std::thread gapTimerThread(gapTimer, std::ref(--max_concurrency));
 
     // 8. Loop over the shared ring buffer in modulo pattern so we continuously iterate
      // Ensure the frame index is always within the frame count of the shared ring buffer
     uint32_t mcast_ip = inet_addr(MULTICAST_IP);
     uint16_t dest_port = htons(PORT);
 
-    // Create poll object so process doesnt busy wait, let kernel wake process when block ready
-    pollfd pfd{};
-    pfd.fd = sockfd;
-    pfd.events = POLLIN;
+    // Create BufferPool object, for managing freeBuferPool queue, which holds all currently free buffers
+    // Network thread (producer) pops from this queue and copies current UDP payload into the buffer
+    // and then pushes a pointer to the buffer into the parser threads SPSCQ.
+    // Parser thread reads from its' SPSCQ, parses the message and then pushes the buffer pointer back into
+    // the freeBufferPool
+    BufferPool bufPool(QUEUE_CAPACITY);
+    
+    // Spawn parser threads
+    while(--max_concurrency) {
+        std::unique_ptr<SPSCQ<ParsingBuffer*>> ptr = std::make_unique<SPSCQ<ParsingBuffer*>>(QUEUE_CAPACITY);
+        std::async(std::launch::async, parserThread, std::move(ptr));
+    }
     for(uint32_t block_idx = 0; ;block_idx = (block_idx + 1) % BLOCK_NR)
     {
         // Get the TPACKET_V3 block pointer 

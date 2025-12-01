@@ -110,9 +110,9 @@ inline void handleGapTimeout() {
 // Function run for the timer thread, sets gapTimerExpired flag in GlobalState
 // once timer expires. Main thread, which runs handleGapTimeout() for every message parsed,
 // checks this flag to flush the seen bitset.
-inline void gapTimer() {
+inline void gapTimer(int cpu_number) {
     // Pin this thread to an isolated CPU so it can spin wait to its hearts content
-    pinToCpu(3);
+    pinToCpu(cpu_number);
     raisePriority();
     while (GlobalState::timerIsRunning.load(std::memory_order_acquire)) {
         // spin wait

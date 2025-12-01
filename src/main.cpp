@@ -114,7 +114,7 @@ int main() {
     // 7. Start timer thread for packet sequencer (for detecting losses when gaps opened in stream
     // due to out-of-order messages)
     GlobalState::timerIsRunning.store(true, std::memory_order_relaxed);
-    std::thread gapTimerThread(gapTimer, std::ref(--max_concurrency));
+    std::thread gapTimerThread(gapTimer, std::cref(--max_concurrency));
 
     // 8. Loop over the shared ring buffer in modulo pattern so we continuously iterate
      // Ensure the frame index is always within the frame count of the shared ring buffer
@@ -127,12 +127,25 @@ int main() {
     // Parser thread reads from its' SPSCQ, parses the message and then pushes the buffer pointer back into
     // the freeBufferPool
     BufferPool bufPool(QUEUE_CAPACITY);
-    
+    ParsingBuffer *bufToParse;
+    std::vector<std::shared_ptr<SPSCQ<ParsingBuffer*>>> queueVector;
+    queueVector.reserve(max_concurrency);
+
     // Spawn parser threads
-    while(--max_concurrency) {
-        std::unique_ptr<SPSCQ<ParsingBuffer*>> ptr = std::make_unique<SPSCQ<ParsingBuffer*>>(QUEUE_CAPACITY);
-        std::async(std::launch::async, parserThread, std::move(ptr));
+    while(--max_concurrency >= 0) {
+        // Create the queue and pass it as a pointer to the parseThread function
+        // We use shared pointer since it is also owned by the queueVector vector
+        // used by the network thread to push items into the queue
+        std::shared_ptr<SPSCQ<ParsingBuffer*>> ptr = std::make_shared<SPSCQ<ParsingBuffer*>>(QUEUE_CAPACITY);
+        queueVector.emplace_back(ptr);
+        std::thread parser(parserThread, ptr, std::cref(max_concurrency), std::ref(bufPool));
+
+        // run async, no need for std::async as we have no use of the std::future return value
+        parser.detach();
     }
+
+    int numOfParsingThreads = queueVector.size();
+    std::cout << "SPAWNED " << numOfParsingThreads << " PARSING THREADS";
     for(uint32_t block_idx = 0; ;block_idx = (block_idx + 1) % BLOCK_NR)
     {
         // Get the TPACKET_V3 block pointer 
@@ -203,7 +216,17 @@ int main() {
             // And determine the size using the IP header. The IP payload size is equal to the total length field (16 bit) - IHL (4 bit) * 4, which we already have.
             // Then we can get the UDP payload size by taking away the UDP header from that value
             ssize_t payload_length = ntohs(ip_header->tot_len) - ip_header_length - 8;
-            parseMessage(payload, payload_length);
+
+            // MULTITHREADING PORTION
+            // Now we have the payload and its length. We must obtain a free buffer and write to it
+            if(!bufPool.freeBufferPool.pop(bufToParse)) continue;
+            memcpy(bufToParse->data, payload, payload_length);
+            bufToParse->size = payload_length;
+            
+            // Now find the first non empty queue which we can push this buffer into
+            for (int i = 0; i < numOfParsingThreads; i++) {
+                if (!queueVector[i]->full()) queueVector[i]->push(bufToParse);
+            }
 
             // Check if timeout occured
             if (GlobalState::gapTimeout.exchange(false, std::memory_order_acq_rel)) {

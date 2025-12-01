@@ -81,7 +81,8 @@ public:
 
 // Type of buffer holding UDP payloads, produced by network thread, consumed by parser thread
 struct ParsingBuffer {
-    uint8_t data[MAX_UDP_PAYLOAD_SIZE];
+    char data[MAX_UDP_PAYLOAD_SIZE];
+    size_t size;
 };
 
 // Class for managing the buffer pool, instantiated in main network thread, the freeBufferPool
@@ -99,4 +100,5 @@ public:
     SPSCQ<ParsingBuffer*> freeBufferPool{_size};
 };
 
-void parserThread(std::unique_ptr<SPSCQ<ParsingBuffer*>>);
+// Parsing thread callable
+void parserThread(std::shared_ptr<SPSCQ<ParsingBuffer*>>, const int &, BufferPool &);

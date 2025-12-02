@@ -2,8 +2,11 @@
 #include <memory>
 #include <atomic>
 #include <iostream>
+#include <vector>
+#include <math.h>
 
 constexpr size_t MAX_UDP_PAYLOAD_SIZE = 1472;
+constexpr size_t QUEUE_CAPACITY = 2048;
 
 // Single producer single consumer queue, to be used for the network thread (producer) writing 
 // the extracted UDP payloads from the mmap'd shared ring buffer to the _buf below. Then the parser thread
@@ -88,17 +91,28 @@ struct ParsingBuffer {
 // Class for managing the buffer pool, instantiated in main network thread, the freeBufferPool
 // is public and can be popped/pushed by both the network and parsing threads
 class BufferPool {
-    std::unique_ptr<ParsingBuffer[]> _allPayloads;
-    size_t _size;
+    std::unique_ptr<ParsingBuffer[]> _allBuffers;
+    int _maxParsingThreads;
 
 public:
-    BufferPool(size_t size): _allPayloads(std::make_unique<ParsingBuffer[]>(size)), _size(size) {
-        for (int i = 0; i < size; i++) {
-            freeBufferPool.push(&_allPayloads[i]);
+    BufferPool(int maxParsingThreads): _allBuffers(std::make_unique<ParsingBuffer[]>(QUEUE_CAPACITY)), _maxParsingThreads(maxParsingThreads) {
+        // First create the queues for each
+        int N = 0;
+        freeBufferPool.reserve(maxParsingThreads);
+        for (int i = 0; i < maxParsingThreads; i++) {
+            int queueSize = floor(QUEUE_CAPACITY/maxParsingThreads);
+            N += i*queueSize;
+            freeBufferPool.emplace_back(std::make_shared<SPSCQ<ParsingBuffer*>>(queueSize));
+            // Then populate it with the free buffers
+            for (int j = 0; j < queueSize; j++) {
+                freeBufferPool[i]->push(&_allBuffers[j + N]);
+            }
         }
     }
-    SPSCQ<ParsingBuffer*> freeBufferPool{_size};
+
+    // Vector of queues for storing the free buffers for each parsing thread
+    std::vector<std::shared_ptr<SPSCQ<ParsingBuffer*>>> freeBufferPool;
 };
 
 // Parsing thread callable
-void parserThread(std::shared_ptr<SPSCQ<ParsingBuffer*>>, const int &, BufferPool &);
+void parserThread(std::shared_ptr<SPSCQ<ParsingBuffer*>>, std::shared_ptr<SPSCQ<ParsingBuffer*>>, int);

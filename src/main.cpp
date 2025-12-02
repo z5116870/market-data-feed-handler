@@ -28,9 +28,6 @@ constexpr unsigned int FRAME_SIZE = 2048;
 constexpr unsigned int BLOCK_NR = 64;
 constexpr unsigned int FRAME_NR = (BLOCK_NR * BLOCK_SIZE) / FRAME_SIZE;
 
-// Multithreading
-constexpr size_t QUEUE_CAPACITY = 2048;
-
 int max_concurrency = std::thread::hardware_concurrency();
 
 int main() {
@@ -126,7 +123,7 @@ int main() {
     // and then pushes a pointer to the buffer into the parser threads SPSCQ.
     // Parser thread reads from its' SPSCQ, parses the message and then pushes the buffer pointer back into
     // the freeBufferPool
-    BufferPool bufPool(QUEUE_CAPACITY);
+    BufferPool bufPool(max_concurrency);
     ParsingBuffer *bufToParse;
     std::vector<std::shared_ptr<SPSCQ<ParsingBuffer*>>> queueVector;
     queueVector.reserve(max_concurrency);
@@ -138,7 +135,7 @@ int main() {
         // used by the network thread to push items into the queue
         std::shared_ptr<SPSCQ<ParsingBuffer*>> ptr = std::make_shared<SPSCQ<ParsingBuffer*>>(QUEUE_CAPACITY);
         queueVector.emplace_back(ptr);
-        std::thread parser(parserThread, ptr, std::cref(max_concurrency), std::ref(bufPool));
+        std::thread parser(parserThread, ptr, bufPool.freeBufferPool[max_concurrency], max_concurrency);
 
         // run async, no need for std::async as we have no use of the std::future return value
         parser.detach();
@@ -219,13 +216,24 @@ int main() {
 
             // MULTITHREADING PORTION
             // Now we have the payload and its length. We must obtain a free buffer and write to it
-            if(!bufPool.freeBufferPool.pop(bufToParse)) continue;
+            // find the first non empty queue to pop from
+            for (int i = 0; i < numOfParsingThreads; i++) {
+                if(!bufPool.freeBufferPool[i]->empty()) {
+                    bufPool.freeBufferPool[i]->pop(bufToParse);
+                    break;
+                }
+            }
+
+            // Copy the data into the buffer
             memcpy(bufToParse->data, payload, payload_length);
             bufToParse->size = payload_length;
             
-            // Now find the first non empty queue which we can push this buffer into
+            // Now find the first non full queue which we can push this buffer into
             for (int i = 0; i < numOfParsingThreads; i++) {
-                if (!queueVector[i]->full()) queueVector[i]->push(bufToParse);
+                if (!queueVector[i]->full()) {
+                    queueVector[i]->push(bufToParse);
+                    break;
+                }
             }
 
             // Check if timeout occured

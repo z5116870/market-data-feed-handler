@@ -4,7 +4,7 @@
 
 // This thread runs the parsing function async, by popping ParsingBuffer pointers from its queue and
 // passing it to parseMessage
-void parserThread(std::shared_ptr<SPSCQ<ParsingBuffer*>> queuePtr, const int &cpu_num, BufferPool &bufPool) {
+void parserThread(std::shared_ptr<SPSCQ<ParsingBuffer*>> parseQueuePtr, std::shared_ptr<SPSCQ<ParsingBuffer*>> freeQueuePtr, int cpu_num) {
     // set CPU affinity and raise priority to ensure maximum CPU share
     pinToCpu(cpu_num);
     raisePriority();
@@ -13,9 +13,9 @@ void parserThread(std::shared_ptr<SPSCQ<ParsingBuffer*>> queuePtr, const int &cp
     while(1) {
         // If the queue has an element, pop it, parse it and return the buffer back to the
         // free pool so the network thread can copy another UDP payload into it
-        if(queuePtr->pop(next)) { 
+        if(parseQueuePtr->pop(next)) { 
             parseMessage(next->data, next->size);
-            bufPool.freeBufferPool.push(next);
+            freeQueuePtr->push(next);
         }
     }
 }

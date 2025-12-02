@@ -6,7 +6,7 @@
 #include <math.h>
 
 constexpr size_t MAX_UDP_PAYLOAD_SIZE = 1472;
-constexpr size_t QUEUE_CAPACITY = 2048;
+constexpr size_t NUM_OF_BUFFERS = 2048;
 
 // Single producer single consumer queue, to be used for the network thread (producer) writing 
 // the extracted UDP payloads from the mmap'd shared ring buffer to the _buf below. Then the parser thread
@@ -95,23 +95,46 @@ class BufferPool {
     int _maxParsingThreads;
 
 public:
-    BufferPool(int maxParsingThreads): _allBuffers(std::make_unique<ParsingBuffer[]>(QUEUE_CAPACITY)), _maxParsingThreads(maxParsingThreads) {
-        // First create the queues for each
+    BufferPool(int maxParsingThreads): _allBuffers(std::make_unique<ParsingBuffer[]>(NUM_OF_BUFFERS)), _maxParsingThreads(maxParsingThreads) {
+        // First reserve the space for the queues in each vector
         int N = 0;
-        freeBufferPool.reserve(maxParsingThreads);
+        freeQueues.reserve(maxParsingThreads);
+        parseQueues.reserve(maxParsingThreads);
+
+        // Each thread gets a parsing queue and free queue (producer i.e. network thread writes to the parsing queue and reads from the free queue)
+        // This conserves the SPSCQ model, if the free queue was unified we would need a MPSCQ model
         for (int i = 0; i < maxParsingThreads; i++) {
-            int queueSize = floor(QUEUE_CAPACITY/maxParsingThreads);
-            N += i*queueSize;
-            freeBufferPool.emplace_back(std::make_shared<SPSCQ<ParsingBuffer*>>(queueSize));
-            // Then populate it with the free buffers
+            int queueSize = floor(NUM_OF_BUFFERS/maxParsingThreads);
+            freeQueues.emplace_back(std::make_shared<SPSCQ<ParsingBuffer*>>(queueSize));
+            parseQueues.emplace_back(std::make_shared<SPSCQ<ParsingBuffer*>>(queueSize));
+
+            // Now that the queues are created, populate the freeQueues, allowing the network thread to begin
+            // popping from it and pushing to the parseQueues (done in main loop)
             for (int j = 0; j < queueSize; j++) {
-                freeBufferPool[i]->push(&_allBuffers[j + N]);
+                freeQueues[i]->push(&_allBuffers[j + N]);
             }
+            N += queueSize;
         }
     }
 
+    // Network thread calls this to get the next free buffer to copy the UDP payload into
+    ParsingBuffer* getFreeBuffer() {
+        ParsingBuffer* out;
+        for (int i = 0; i < _maxParsingThreads; i++) if(freeQueues[i]->pop(out)) break;
+        return out;
+    }
+
+    // Network thread also calls this to push a previously free buffer (now populated with the UDP payload)
+    // into a parseQueue
+    [[nodiscard]] bool pushBufferToParse(ParsingBuffer *bufToParse) {
+        for (int i = 0; i < _maxParsingThreads; i++) if(parseQueues[i]->push(bufToParse)) return true;
+        return false;
+    }
+    // Vector of queues for storing the parsing queues for each thread
+    std::vector<std::shared_ptr<SPSCQ<ParsingBuffer*>>> parseQueues;
+
     // Vector of queues for storing the free buffers for each parsing thread
-    std::vector<std::shared_ptr<SPSCQ<ParsingBuffer*>>> freeBufferPool;
+    std::vector<std::shared_ptr<SPSCQ<ParsingBuffer*>>> freeQueues;
 };
 
 // Parsing thread callable

@@ -118,31 +118,20 @@ int main() {
     uint32_t mcast_ip = inet_addr(MULTICAST_IP);
     uint16_t dest_port = htons(PORT);
 
-    // Create BufferPool object, for managing freeBuferPool queue, which holds all currently free buffers
-    // Network thread (producer) pops from this queue and copies current UDP payload into the buffer
+    // Create BufferPool object, for managing freeBuferPool queue, which holds all currently free buffers (freeQueues) and parse buffers (parseQueues)
+    // Network thread (producer) pops from freeQueue (first non empty queue) and copies current UDP payload into the buffer
     // and then pushes a pointer to the buffer into the parser threads SPSCQ.
-    // Parser thread reads from its' SPSCQ, parses the message and then pushes the buffer pointer back into
-    // the freeBufferPool
+    // Parser thread reads from its parserQueue, parses the message and then pushes the buffer pointer back into its own freeQueue
     BufferPool bufPool(max_concurrency);
     ParsingBuffer *bufToParse;
-    std::vector<std::shared_ptr<SPSCQ<ParsingBuffer*>>> queueVector;
-    queueVector.reserve(max_concurrency);
 
     // Spawn parser threads
-    while(--max_concurrency >= 0) {
-        // Create the queue and pass it as a pointer to the parseThread function
-        // We use shared pointer since it is also owned by the queueVector vector
-        // used by the network thread to push items into the queue
-        std::shared_ptr<SPSCQ<ParsingBuffer*>> ptr = std::make_shared<SPSCQ<ParsingBuffer*>>(QUEUE_CAPACITY);
-        queueVector.emplace_back(ptr);
-        std::thread parser(parserThread, ptr, bufPool.freeBufferPool[max_concurrency], max_concurrency);
-
+    for (int i = max_concurrency; i >= 0; i++) {
         // run async, no need for std::async as we have no use of the std::future return value
-        parser.detach();
+        std::thread(parserThread, bufPool.parseQueues[i], bufPool.freeQueues[i], max_concurrency).detach();
     }
 
-    int numOfParsingThreads = queueVector.size();
-    std::cout << "SPAWNED " << numOfParsingThreads << " PARSING THREADS";
+    std::cout << "SPAWNED " << max_concurrency << " PARSING THREADS";
     for(uint32_t block_idx = 0; ;block_idx = (block_idx + 1) % BLOCK_NR)
     {
         // Get the TPACKET_V3 block pointer 
@@ -217,30 +206,24 @@ int main() {
             // MULTITHREADING PORTION
             // Now we have the payload and its length. We must obtain a free buffer and write to it
             // find the first non empty queue to pop from
-            for (int i = 0; i < numOfParsingThreads; i++) {
-                if(!bufPool.freeBufferPool[i]->empty()) {
-                    bufPool.freeBufferPool[i]->pop(bufToParse);
-                    break;
-                }
-            }
+            bufToParse = bufPool.getFreeBuffer();
+
+            // If there were no free buffers, the bufToParse would be nullptr
+            if (!bufToParse) continue;
 
             // Copy the data into the buffer
             memcpy(bufToParse->data, payload, payload_length);
             bufToParse->size = payload_length;
             
             // Now find the first non full queue which we can push this buffer into
-            for (int i = 0; i < numOfParsingThreads; i++) {
-                if (!queueVector[i]->full()) {
-                    queueVector[i]->push(bufToParse);
-                    break;
-                }
-            }
+            if (!bufPool.pushBufferToParse(bufToParse)) GlobalState::lostMessages ++;
 
             // Check if timeout occured
             if (GlobalState::gapTimeout.exchange(false, std::memory_order_acq_rel)) {
                 handleGapTimeout();
             }
             current_packet = (tpacket3_hdr *)((uint8_t*) current_packet + current_packet->tp_next_offset);
+            bufToParse = nullptr;
         }
 
         release_block(block_ptr);

@@ -1,3 +1,4 @@
+#pragma once
 #include <sched.h>
 #include <stdio.h>
 #include <iostream>

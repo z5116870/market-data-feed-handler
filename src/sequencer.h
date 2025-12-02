@@ -10,10 +10,10 @@ constexpr auto GAP_TIMEOUT = std::chrono::milliseconds(5);
 // Global state struct, used for tracking parsing program metrics (aligned to cache block size)
 struct alignas(64) GlobalState {
     // Metrics
-    inline static uint32_t parsedMessages = 0;
-    inline static uint32_t outOfOrderMessages = 0;
-    inline static uint32_t lostMessages = 0;
-    inline static uint32_t duplicates = 0;
+    inline static std::atomic<uint32_t> parsedMessages = 0;
+    inline static std::atomic<uint32_t> outOfOrderMessages = 0;
+    inline static std::atomic<uint32_t> lostMessages = 0;
+    inline static std::atomic<uint32_t> duplicates = 0;
 
     // Sequencer
     inline static std::atomic<uint32_t> nextSeq = UINT32_MAX; // sentinel, will be initialized on first packet
@@ -28,6 +28,9 @@ struct alignas(64) GlobalState {
     // Timer
     inline static std::atomic<bool> gapTimeout = false; // flag set by timer thread, main thread reads this and flushes bitset
     inline static std::atomic<bool> timerIsRunning = false; // bool for determining if timer is running
+
+    // Running parser
+    inline static std::atomic<bool> runParser = true;
 };
 
 inline void checkAndSetGlobalState(const uint32_t &seq) {
@@ -44,7 +47,7 @@ inline void checkAndSetGlobalState(const uint32_t &seq) {
     // 1. seq < nextSeq (duplicate)
     if (seq < GlobalState::nextSeq.load(std::memory_order_acquire)) {
         // DUPLICATE
-        GlobalState::duplicates++;
+        GlobalState::duplicates.fetch_add(1, std::memory_order_relaxed);
         return;
     }
 
@@ -52,7 +55,7 @@ inline void checkAndSetGlobalState(const uint32_t &seq) {
     if (seq == GlobalState::nextSeq.load(std::memory_order_acquire)) {
         // Set the sliding window bitset
         GlobalState::seen[seq % WINDOW_SIZE].store(seq, std::memory_order_relaxed);
-        GlobalState::parsedMessages++;
+        GlobalState::parsedMessages.fetch_add(1, std::memory_order_release);
         GlobalState::nextSeq.fetch_add(1, std::memory_order_release);
         // if we are in GAP_OPEN state
         if (GlobalState::gapExists.load(std::memory_order_acquire)) {
@@ -60,7 +63,7 @@ inline void checkAndSetGlobalState(const uint32_t &seq) {
             while (GlobalState::seen[GlobalState::nextSeq.load(std::memory_order_acquire) % WINDOW_SIZE]
                    .load(std::memory_order_acquire) == GlobalState::nextSeq.load(std::memory_order_acquire)) {
                 GlobalState::nextSeq.fetch_add(1, std::memory_order_release);
-                GlobalState::parsedMessages++;
+                GlobalState::parsedMessages.fetch_add(1, std::memory_order_release);
             }
 
             // Does the gap still exist?
@@ -80,7 +83,7 @@ inline void checkAndSetGlobalState(const uint32_t &seq) {
         if (!GlobalState::gapExists.load(std::memory_order_acquire)) {
             GlobalState::gapExists.store(true, std::memory_order_release);
         }
-        GlobalState::outOfOrderMessages++;
+        GlobalState::outOfOrderMessages.fetch_add(1, std::memory_order_relaxed);
         GlobalState::seen[seq % WINDOW_SIZE].store(seq, std::memory_order_release);
     }
 }
@@ -95,7 +98,7 @@ inline void handleGapTimeout() {
     // the lostMessages counter
     for (uint32_t seq = GlobalState::nextSeq.load(std::memory_order_acquire);
      seq <= GlobalState::highestSeq.load(std::memory_order_acquire); ++seq) {
-        if (GlobalState::seen[seq % WINDOW_SIZE].load(std::memory_order_acquire) != seq) GlobalState::lostMessages++;
+        if (GlobalState::seen[seq % WINDOW_SIZE].load(std::memory_order_acquire) != seq) GlobalState::lostMessages.fetch_add(1, std::memory_order_relaxed);
     }
 
     // Reset the timer and gap states

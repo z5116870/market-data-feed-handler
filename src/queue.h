@@ -128,11 +128,17 @@ public:
 
     // Network thread also calls this to push a previously free buffer (now populated with the UDP payload)
     // into a parseQueue
-    bool pushBufferToParse(ParsingBuffer *bufToParse) {
-        int i = rr_index;
-        rr_index = (rr_index + 1) % _maxParsingThreads;
-        return parseQueues[i]->push(bufToParse);
+    bool pushBufferToParse(ParsingBuffer* bufToParse) {
+        for (int tries = 0; tries < _maxParsingThreads; tries++) {
+            int i = rr_index;
+            rr_index = (rr_index + 1) % _maxParsingThreads;
+
+            if (parseQueues[i]->push(bufToParse))
+                return true;
+        }
+        return false; // all queues full → packet dropped
     }
+    
     // Vector of queues for storing the parsing queues for each thread
     std::vector<std::unique_ptr<SPSCQ<ParsingBuffer*>>> parseQueues;
 

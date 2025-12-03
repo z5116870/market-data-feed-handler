@@ -1,3 +1,4 @@
+#pragma once
 #include <sched.h>
 #include <stdio.h>
 #include <iostream>
@@ -17,9 +18,9 @@ inline void pinToCpu(int cpu_id) {
 
 // Raise the priority of the current thread to max, allowing it to preempt all other threads
 // of type SCHED_OTHER (using vruntime through CFS) and all lower priority SCHED_FIFO tasks
-inline void raisePriority() {
+inline void setPriority(int priority) {
     sched_param sch{};
-    sch.sched_priority = 99;
+    sch.sched_priority = priority;
     if (pthread_setschedparam(pthread_self(), SCHED_FIFO, &sch) != 0) {
         perror("Failed to set max scheduling priority for");
     }

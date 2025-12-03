@@ -13,19 +13,18 @@
 #include <sys/mman.h>
 #include <functional>
 #include <future>
-#include "parse.h"
-#include "sequencer.h"
-#include "queue.h"
-
+#include "../../../src/parse.h"
+#include "../../../src/sequencer.h"
+#include "../../../src/queue.h"
 #define MULTICAST_IP "239.1.1.1"
 #define PORT 30001
 #define LOG(x) std::cout << x << std::endl
 #define LOGREAD(x) std::cout << "READ " << x << " BYTES\n"
 
 // PACKET_MMAP RING BUFFER CONSTS
-constexpr unsigned int BLOCK_SIZE = 524288;
+constexpr unsigned int BLOCK_SIZE = 65536;
 constexpr unsigned int FRAME_SIZE = 2048;
-constexpr unsigned int BLOCK_NR = 64;
+constexpr unsigned int BLOCK_NR = 32;
 constexpr unsigned int FRAME_NR = (BLOCK_NR * BLOCK_SIZE) / FRAME_SIZE;
 
 int max_concurrency = std::thread::hardware_concurrency();
@@ -33,6 +32,7 @@ int max_concurrency = std::thread::hardware_concurrency();
 int main() {
     // 0. Pin to quiet core
     pinToCpu(--max_concurrency);
+    setPriority(99);
     // 1. Get the interface name used for the multicast IP
     std::string nic = "enxc8a362d92729";
     if (nic.empty()) {
@@ -128,10 +128,13 @@ int main() {
     // Spawn parser threads
     for (int i = 0; i < max_concurrency; i++) {
         // run async, no need for std::async as we have no use of the std::future return value
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
         std::thread(parserThread, bufPool.parseQueues[i], bufPool.freeQueues[i], i).detach();
     }
 
-    std::cout << "SPAWNED " << max_concurrency << " PARSING THREADS";
+    std::cout << "SPAWNED " << max_concurrency << " PARSING THREADS\n";
+    uint32_t NUM_MESSAGES = 10000000;
+    auto now = std::chrono::steady_clock::now();
     for(uint32_t block_idx = 0; ;block_idx = (block_idx + 1) % BLOCK_NR)
     {
         // Get the TPACKET_V3 block pointer 
@@ -224,13 +227,30 @@ int main() {
             }
             current_packet = (tpacket3_hdr *)((uint8_t*) current_packet + current_packet->tp_next_offset);
         }
-
+        if(GlobalState::parsedMessages.load(std::memory_order_seq_cst) > NUM_MESSAGES) {
+            GlobalState::runParser.store(false, std::memory_order_relaxed);   
+            break;
+        }
+        
         release_block(block_ptr);
     }
 
-    // 8. Stop the timer thread
     GlobalState::timerIsRunning.store(false, std::memory_order_relaxed);
     gapTimerThread.join();
-    munmap(ringPtr, mmap_len); // Unmap the shared memory to release it
+    auto end = std::chrono::steady_clock::now();
+    long long time_taken = std::chrono::duration_cast<std::chrono::nanoseconds>(end - now).count();
+    std::chrono::duration<double> time_taken_sec = end - now;
     close(sockfd);
+
+    // RESULTS
+    std::cout << "=== RESULTS ===\n";
+    printf("Messages parsed: %d\n", NUM_MESSAGES);
+    printf("Messages lost: %u\n", GlobalState::lostMessages.load(std::memory_order_relaxed));
+    printf("Messages received out of order: %u\n", GlobalState::outOfOrderMessages.load(std::memory_order_relaxed));
+    printf("Messages recieved as duplicates: %u\n", GlobalState::duplicates.load(std::memory_order_relaxed));
+    printf("Time taken: %lld\n", time_taken);
+    printf("Time taken per message: %lld\n", time_taken/NUM_MESSAGES);
+    printf("Throughput: %f messages/sec\n", NUM_MESSAGES / time_taken_sec.count());
+
+    munmap(ringPtr, mmap_len); // Unmap the shared memory to release it
 }

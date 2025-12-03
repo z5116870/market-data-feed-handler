@@ -237,7 +237,9 @@ int main() {
             for (auto &t: parserThreads) t.join();  
             break;
         }
-        
+        std::cout << GlobalState::parsedMessages << std::endl;
+        std::cout << GlobalState::nextSeq << std::endl;
+        std::cout << GlobalState::highestSeq << std::endl;
         release_block(block_ptr);
     }
     auto end = std::chrono::steady_clock::now();

@@ -5,7 +5,12 @@
 #include <condition_variable>
 #include "parse.h"
 #include "cpu.h"
+
 constexpr auto GAP_TIMEOUT = std::chrono::milliseconds(5);
+
+// Size of the sliding window used for determining whether packets were received
+// out of order, as duplicates or lost
+constexpr size_t WINDOW_SIZE = 65536; //8MB window size
 
 // Global state struct, used for tracking parsing program metrics (aligned to cache block size)
 struct alignas(64) GlobalState {
@@ -55,7 +60,7 @@ inline void checkAndSetGlobalState(const uint32_t &seq) {
     if (seq == GlobalState::nextSeq.load(std::memory_order_acquire)) {
         // Set the sliding window bitset
         GlobalState::seen[seq % WINDOW_SIZE].store(seq, std::memory_order_relaxed);
-        GlobalState::parsedMessages.fetch_add(1, std::memory_order_release);
+        GlobalState::parsedMessages.fetch_add(1, std::memory_order_acq_rel);
         GlobalState::nextSeq.fetch_add(1, std::memory_order_release);
         // if we are in GAP_OPEN state
         if (GlobalState::gapExists.load(std::memory_order_acquire)) {
@@ -63,7 +68,7 @@ inline void checkAndSetGlobalState(const uint32_t &seq) {
             while (GlobalState::seen[GlobalState::nextSeq.load(std::memory_order_acquire) % WINDOW_SIZE]
                    .load(std::memory_order_acquire) == GlobalState::nextSeq.load(std::memory_order_acquire)) {
                 GlobalState::nextSeq.fetch_add(1, std::memory_order_release);
-                GlobalState::parsedMessages.fetch_add(1, std::memory_order_release);
+                GlobalState::parsedMessages.fetch_add(1, std::memory_order_acq_rel);
             }
 
             // Does the gap still exist?
@@ -91,7 +96,7 @@ inline void checkAndSetGlobalState(const uint32_t &seq) {
 // Handle the gap timeout after it expires (entering GAP_TIMEOUT state)
 inline void handleGapTimeout() {
     // If the flag is not set, just return
-    if (!GlobalState::gapTimeout.load(std::memory_order_acquire)) return;
+    //if (!GlobalState::gapTimeout.load(std::memory_order_acquire)) return;
 
     // Otherwise, flush the bitset. Iterate over the bitset and for every 
     // 0 found in between the low (nextSeq) and the high (highestSeq) increment

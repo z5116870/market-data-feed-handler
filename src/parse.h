@@ -9,10 +9,6 @@ enum LogLevel {
     VERBOSE = 1, RAW, OFF
 };
 
-// Size of the sliding window used for determining whether packets were received
-// out of order, as duplicates or lost
-constexpr size_t WINDOW_SIZE = 65536; //8MB window size
-
 enum MessageSize {
     Trade = 36,
     OrderExecuted = 23,

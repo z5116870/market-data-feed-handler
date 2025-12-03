@@ -216,14 +216,13 @@ int main() {
             bufToParse->size = payload_length;
             
             // Now find the first non full queue which we can push this buffer into
-            if (!bufPool.pushBufferToParse(bufToParse)) GlobalState::lostMessages ++;
+            bufPool.pushBufferToParse(bufToParse);
 
             // Check if timeout occured
             if (GlobalState::gapTimeout.exchange(false, std::memory_order_acq_rel)) {
                 handleGapTimeout();
             }
             current_packet = (tpacket3_hdr *)((uint8_t*) current_packet + current_packet->tp_next_offset);
-            bufToParse = nullptr;
         }
 
         release_block(block_ptr);

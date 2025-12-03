@@ -83,8 +83,8 @@ public:
 };
 
 // Type of buffer holding UDP payloads, produced by network thread, consumed by parser thread
-struct ParsingBuffer {
-    char data[2048];
+struct alignas(64) ParsingBuffer {
+    char data[MAX_UDP_PAYLOAD_SIZE];
     size_t size;
 };
 
@@ -127,7 +127,7 @@ public:
 
     // Network thread also calls this to push a previously free buffer (now populated with the UDP payload)
     // into a parseQueue
-    [[nodiscard]] bool pushBufferToParse(ParsingBuffer *bufToParse) {
+    bool pushBufferToParse(ParsingBuffer *bufToParse) {
         for (int i = 0; i < _maxParsingThreads; i++) if(parseQueues[i]->push(bufToParse)) return true;
         return false;
     }

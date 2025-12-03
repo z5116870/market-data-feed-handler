@@ -121,7 +121,6 @@ inline void handleGapTimeout() {
 inline void gapTimer(const int &cpu_number) {
     // Pin this thread to an isolated CPU so it can spin wait to its hearts content
     pinToCpu(cpu_number);
-    raisePriority();
     while (GlobalState::timerIsRunning.load(std::memory_order_acquire)) {
         // spin wait
         if (GlobalState::gapExists.load(std::memory_order_acquire)) {

@@ -9,7 +9,7 @@
 void parserThread(std::shared_ptr<SPSCQ<ParsingBuffer*>> parseQueuePtr, std::shared_ptr<SPSCQ<ParsingBuffer*>> freeQueuePtr, int cpu_num) {
     // set CPU affinity and raise priority to ensure maximum CPU share
     pinToCpu(cpu_num);
-    raisePriority();
+    setPriority(98);
 
     ParsingBuffer *next;
     while(GlobalState::runParser.load(std::memory_order_relaxed)) {

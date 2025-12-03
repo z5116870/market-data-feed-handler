@@ -32,6 +32,7 @@ int max_concurrency = std::thread::hardware_concurrency();
 int main() {
     // 0. Pin to quiet core
     pinToCpu(--max_concurrency);
+    setPriority(99);
     // 1. Get the interface name used for the multicast IP
     std::string nic = "enxc8a362d92729";
     if (nic.empty()) {
@@ -232,12 +233,11 @@ int main() {
         
         release_block(block_ptr);
     }
-
-    GlobalState::timerIsRunning.store(false, std::memory_order_relaxed);
-    gapTimerThread.join();
     auto end = std::chrono::steady_clock::now();
     long long time_taken = std::chrono::duration_cast<std::chrono::nanoseconds>(end - now).count();
     std::chrono::duration<double> time_taken_sec = end - now;
+    GlobalState::timerIsRunning.store(false, std::memory_order_relaxed);
+    gapTimerThread.join();
     close(sockfd);
 
     // RESULTS

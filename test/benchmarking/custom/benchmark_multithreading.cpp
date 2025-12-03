@@ -32,6 +32,7 @@ int max_concurrency = std::thread::hardware_concurrency();
 int main() {
     // 0. Pin to quiet core
     pinToCpu(--max_concurrency);
+    setPriority(99);
     // 1. Get the interface name used for the multicast IP
     std::string nic = "enxc8a362d92729";
     if (nic.empty()) {
@@ -127,6 +128,7 @@ int main() {
     // Spawn parser threads
     for (int i = 0; i < max_concurrency; i++) {
         // run async, no need for std::async as we have no use of the std::future return value
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
         std::thread(parserThread, bufPool.parseQueues[i], bufPool.freeQueues[i], i).detach();
     }
 

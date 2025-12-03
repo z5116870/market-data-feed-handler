@@ -4,6 +4,7 @@
 #include <atomic>
 #include <bitset>
 #include "helper.h"
+#include "queue.h"
 
 enum LogLevel {
     VERBOSE = 1, RAW, OFF

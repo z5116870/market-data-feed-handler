@@ -105,7 +105,7 @@ inline std::string getMulticastInterface(const char * mcast_ip_addr) {
     sockaddr_in addr{};
     addr.sin_family = AF_INET;
     addr.sin_port = htons(12345);
-    inet_pton(AF_INET, mcast_ip_addr,&addr.sin_family);
+    inet_pton(AF_INET, mcast_ip_addr,&addr.sin_addr);
 
     // Connect to the address with the socket
     // Does not actually send packets as UDP is connectionless, this is just

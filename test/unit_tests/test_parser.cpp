@@ -7,11 +7,10 @@
 #include <cstring>
 #include <arpa/inet.h>
 
-// REMOVE WHEN RUNNING ON LINUX
-#include <libkern/OSByteOrder.h>
-#define htobe64(x) OSSwapHostToBigInt64(x)
-
-int main() {
+#define TEST_CASE(name) std::cout << "[TEST]: " << name << "..."
+#define PASS() std::cout << "***PASS***\n"
+#define FAIL(msg) do { std::cerr << "!!FAIL!!: " << msg << std::endl; std::exit(1); } while(0)
+void testParsesTradeMessage() {
     // Fake a single Trade message buffer
     std::cout << "=== RUNNING TEST PARSER TRADE ===\n";
     uint8_t buf[64] = {};
@@ -33,9 +32,12 @@ int main() {
     TradeMessage msg;
     parseTrade(reinterpret_cast<const char*>(buf), msg);
 
-    // Sanity check only
-    assert(msg.messageType == 'P');
-    assert(msg.shares == 100);
-    assert(msg.price == 12345);
-    std::cout << "\nPASSED\n";
+    if(msg.messageType != 'P') FAIL("Incorrect message type");
+    if(msg.shares != 100) FAIL("Incorrect shares");
+    if(msg.price != 12345) FAIL("Incorrect price");
+    PASS();
+}
+
+int main() {
+    testParsesTradeMessage();
 }

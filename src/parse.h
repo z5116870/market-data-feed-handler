@@ -123,3 +123,6 @@ std::ostream &operator<<(std::ostream &s, OrderExecutedMessage &t);
 std::ostream &operator<<(std::ostream &s, OrderExecutedWithPriceMessage &t);
 std::ostream &operator<<(std::ostream &s, SystemEventMessage &t);
 std::ostream &operator<<(std::ostream &s, OrderCancelMessage &t);
+
+// Parsing thread callable
+void parserThread(std::shared_ptr<SPSCQ<ParsingBuffer*>>, std::shared_ptr<SPSCQ<ParsingBuffer*>>, int);

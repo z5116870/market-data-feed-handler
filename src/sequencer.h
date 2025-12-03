@@ -95,10 +95,7 @@ inline void checkAndSetGlobalState(const uint32_t &seq) {
 
 // Handle the gap timeout after it expires (entering GAP_TIMEOUT state)
 inline void handleGapTimeout() {
-    // If the flag is not set, just return
-    //if (!GlobalState::gapTimeout.load(std::memory_order_acquire)) return;
-
-    // Otherwise, flush the bitset. Iterate over the bitset and for every 
+    // First flush the bitset. Iterate over the bitset and for every 
     // 0 found in between the low (nextSeq) and the high (highestSeq) increment
     // the lostMessages counter
     for (uint32_t seq = GlobalState::nextSeq.load(std::memory_order_acquire);
@@ -122,7 +119,7 @@ inline void gapTimer(const int &cpu_number) {
     // Pin this thread to an isolated CPU so it can spin wait to its hearts content
     pinToCpu(cpu_number);
     while (GlobalState::timerIsRunning.load(std::memory_order_acquire)) {
-        // spin wait
+        // Spin wait until gapExists is true
         if (GlobalState::gapExists.load(std::memory_order_acquire)) {
             // Once the gap exists, start the timer
             std::this_thread::sleep_for(GAP_TIMEOUT);

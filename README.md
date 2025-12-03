@@ -19,12 +19,14 @@ This project was developed to:
 
 ## Directory Layout
 
+```
 market-data-feed-handler/
 ├── src/            # Source code (parsing logic, main, etc.)
 ├── test/           # Tests and sample data for parsing / packet handling
 ├── screenshots/    # Example outputs, logs, benchmark results or diagrams
 ├── .gitignore
 └── README.md
+```
 
 ## Design & Implementation Notes
 

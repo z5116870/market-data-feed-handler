@@ -12,7 +12,7 @@ void parserThread(std::shared_ptr<SPSCQ<ParsingBuffer*>> parseQueuePtr, std::sha
     setPriority(98);
 
     ParsingBuffer *next;
-    while(GlobalState::runParser.load(std::memory_order_relaxed)) {
+    while(1) {
         // If the queue has an element, pop it, parse it and return the buffer back to the
         // free pool so the network thread can copy another UDP payload into it
         if(parseQueuePtr->pop(next)) { 

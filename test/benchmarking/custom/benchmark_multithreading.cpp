@@ -31,7 +31,8 @@ int max_concurrency = std::thread::hardware_concurrency();
 
 int main() {
     // 0. Pin to quiet core
-    pinToCpu(--max_concurrency);
+    int main_cpu = max_concurrency - 1;
+    pinToCpu(main_cpu);
     setPriority(99);
     // 1. Get the interface name used for the multicast IP
     std::string nic = "enxc8a362d92729";
@@ -111,7 +112,8 @@ int main() {
     // 7. Start timer thread for packet sequencer (for detecting losses when gaps opened in stream
     // due to out-of-order messages)
     GlobalState::timerIsRunning.store(true, std::memory_order_relaxed);
-    std::thread gapTimerThread(gapTimer, std::cref(--max_concurrency));
+    int timer_cpu = max_concurrency - 2;
+    std::thread gapTimerThread(gapTimer, std::cref(timer_cpu));
 
     // 8. Loop over the shared ring buffer in modulo pattern so we continuously iterate
      // Ensure the frame index is always within the frame count of the shared ring buffer
@@ -122,16 +124,20 @@ int main() {
     // Network thread (producer) pops from freeQueue (first non empty queue) and copies current UDP payload into the buffer
     // and then pushes a pointer to the buffer into the parser threads SPSCQ.
     // Parser thread reads from its parserQueue, parses the message and then pushes the buffer pointer back into its own freeQueue
+    int numOfParserThreads = max_concurrency - 2;
     BufferPool bufPool(max_concurrency);
     ParsingBuffer *bufToParse;
+    std::vector<std::thread> parserThreads;
+    parserThreads.reserve(numOfParserThreads);
 
     // Spawn parser threads
-    for (int i = 0; i < max_concurrency; i++) {
+    for (int i = 0; i < numOfParserThreads; i++) {
         // run async, no need for std::async as we have no use of the std::future return value
-        std::thread(parserThread, bufPool.parseQueues[i], bufPool.freeQueues[i], i).detach();
+        parserThreads.emplace_back(std::thread(parserThread, bufPool.parseQueues[i].get(), bufPool.freeQueues[i].get(), i));
     }
+    std::this_thread::sleep_for(std::chrono::milliseconds(5));
 
-    std::cout << "SPAWNED " << max_concurrency << " PARSING THREADS\n";
+    std::cout << "SPAWNED " << numOfParserThreads << " PARSING THREADS\n";
     uint32_t NUM_MESSAGES = 10000000;
     auto now = std::chrono::steady_clock::now();
     for(uint32_t block_idx = 0; ;block_idx = (block_idx + 1) % BLOCK_NR)
@@ -227,7 +233,8 @@ int main() {
             current_packet = (tpacket3_hdr *)((uint8_t*) current_packet + current_packet->tp_next_offset);
         }
         if(GlobalState::parsedMessages.load(std::memory_order_seq_cst) > NUM_MESSAGES) {
-            GlobalState::runParser.store(false, std::memory_order_relaxed);   
+            GlobalState::runParser.store(false, std::memory_order_relaxed); 
+            for (auto &t: parserThreads) t.join();  
             break;
         }
         

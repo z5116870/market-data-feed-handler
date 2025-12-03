@@ -93,6 +93,7 @@ struct alignas(64) ParsingBuffer {
 class BufferPool {
     std::unique_ptr<ParsingBuffer[]> _allBuffers;
     int _maxParsingThreads;
+    int rr_index = 1;
 
 public:
     BufferPool(int maxParsingThreads): _allBuffers(std::make_unique<ParsingBuffer[]>(NUM_OF_BUFFERS)), _maxParsingThreads(maxParsingThreads) {
@@ -107,8 +108,8 @@ public:
         // This conserves the SPSCQ model, if the free queue was unified we would need a MPSCQ model
         for (int i = 0; i < maxParsingThreads; i++) {
             int queueSize = baseSize + (i < remainder ? 1 : 0);
-            freeQueues.emplace_back(std::make_shared<SPSCQ<ParsingBuffer*>>(queueSize));
-            parseQueues.emplace_back(std::make_shared<SPSCQ<ParsingBuffer*>>(queueSize));
+            freeQueues.emplace_back(std::make_unique<SPSCQ<ParsingBuffer*>>(queueSize));
+            parseQueues.emplace_back(std::make_unique<SPSCQ<ParsingBuffer*>>(queueSize));
 
             // Now that the queues are created, populate the freeQueues, allowing the network thread to begin
             // popping from it and pushing to the parseQueues (done in main loop)
@@ -128,15 +129,16 @@ public:
     // Network thread also calls this to push a previously free buffer (now populated with the UDP payload)
     // into a parseQueue
     bool pushBufferToParse(ParsingBuffer *bufToParse) {
-        for (int i = 0; i < _maxParsingThreads; i++) if(parseQueues[i]->push(bufToParse)) return true;
-        return false;
+        int i = rr_index;
+        rr_index = (rr_index + 1) % _maxParsingThreads;
+        return parseQueues[i]->push(bufToParse);
     }
     // Vector of queues for storing the parsing queues for each thread
-    std::vector<std::shared_ptr<SPSCQ<ParsingBuffer*>>> parseQueues;
+    std::vector<std::unique_ptr<SPSCQ<ParsingBuffer*>>> parseQueues;
 
     // Vector of queues for storing the free buffers for each parsing thread
-    std::vector<std::shared_ptr<SPSCQ<ParsingBuffer*>>> freeQueues;
+    std::vector<std::unique_ptr<SPSCQ<ParsingBuffer*>>> freeQueues;
 };
 
 // Parsing thread callable
-void parserThread(std::shared_ptr<SPSCQ<ParsingBuffer*>>, std::shared_ptr<SPSCQ<ParsingBuffer*>>, int);
+void parserThread(SPSCQ<ParsingBuffer*>*, SPSCQ<ParsingBuffer*>*, int);

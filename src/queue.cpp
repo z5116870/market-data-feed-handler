@@ -6,7 +6,7 @@
 
 // This thread runs the parsing function async, by popping ParsingBuffer pointers from the parsing queue and
 // passing it to parseMessage, then passing the pointers back to the freeQueue
-void parserThread(std::shared_ptr<SPSCQ<ParsingBuffer*>> parseQueuePtr, std::shared_ptr<SPSCQ<ParsingBuffer*>> freeQueuePtr, int cpu_num) {
+void parserThread(SPSCQ<ParsingBuffer*> *parseQueuePtr, SPSCQ<ParsingBuffer*> *freeQueuePtr, int cpu_num) {
     // set CPU affinity and raise priority to ensure maximum CPU share
     pinToCpu(cpu_num);
     setPriority(98);

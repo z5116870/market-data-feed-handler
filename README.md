@@ -3,67 +3,45 @@ This project is a C++ application designed to parse exchange market feeds in rea
 
 ## Key Features
 
-- **Real-time Data Handling**: Continuously listens to UDP multicast feeds, capable of processing high-throughput data with minimal latency.
-- **Reliable Parsing**: Converts raw exchange messages into structured data formats for order book updates, trades, and market events.
-- **Modular Design**: Parsing logic and network handling are separated for maintainability and easy extension.
-- **Testing and Validation**: Includes test cases to verify parsing accuracy and robustness against malformed or out-of-order messages.
-- **Cross-Platform**: Built in C++ with standard networking APIs, compatible with Linux and Windows environments.
+- **Zero-copy packet processing** — leverages packet mmap and direct buffer access to avoid unnecessary data copies from NIC to user code.  
+- **Multithreaded parsing architecture** — supports parallel parsing pipelines to maximise throughput on multicore systems.  
+- **Out-of-order / packet-loss / duplication detection** — tracks sequence metadata to detect reordering, missing packets, or duplicates.  
+- **Minimal dependencies & lean C++ design** — emphasises performance, memory alignment, and efficiency; no heavy runtime dependencies.  
+- **Configurable for real-world feeds** — can be adapted to various exchange protocols over UDP multicast.
 
-## Showcase / Program Capabilities
+## Motivation & Use Cases
 
-1. **Connecting to Live Market Feeds**
-   - Joins UDP multicast groups to receive real-time data.
-   - Handles multiple feeds simultaneously.
-   - Automatically recovers from temporary packet loss or network interruptions.
+This project was developed to:  
 
-2. **Parsing and Structuring Market Data**
-   - Processes raw exchange messages into structured formats.
-   - Supports order book updates, trades, and other market events.
-   - Maintains high-performance parsing suitable for low-latency applications.
+- Demonstrate low-level, high-performance systems programming in C++.  
+- Provide a foundation for market data ingestion pipelines in trading, quant, or real-time analytics environments.  
+- Serve as a portfolio piece to showcase architectural and performance-conscious coding skills relevant to high frequency trading (HFT), market data handling, and latency-sensitive systems.  
 
-3. **Extensible and Testable**
-   - Helper functions and parsing modules are separated for clarity.
-   - Unit tests verify correctness against sample and edge-case messages.
-   - Easily extendable to support additional exchanges or message types.
+## Directory Layout
 
-4. **Performance-Oriented Design**
-   - Minimal memory overhead and efficient handling of high message volumes.
-   - Optimized for low-latency applications such as algorithmic trading systems.
-
-## Example Use Case
-
-A typical workflow might include:  
-
-1. Starting the program and connecting to a multicast feed.
-2. Receiving and parsing thousands of messages per second.
-3. Using the structured output to update a real-time order book or feed a trading algorithm.
-
-## Technical Highlights
-
-- Written entirely in C++ for performance.
-- Uses standard socket programming for UDP multicast handling.
-- Modular, maintainable codebase with separate parsing and utility modules.
-- Includes test scripts and sample data for validation.
-
-## Project Structure
-```
 market-data-feed-handler/
-├─ main.cpp # Entry point: initializes network and starts feed handling
-├─ parse.cpp # Parsing logic: raw messages → structured data
-├─ parse.h # Header for parsing module
-├─ helper.h # Utility functions
-├─ mdfh/ # Additional source/support files
-├─ test/ # Test cases and sample data
-├─ screenshots/ # Example outputs or logs
-├─ .gitignore
-└─ README.md
-```
+├── src/            # Source code (parsing logic, main, etc.)
+├── test/           # Tests and sample data for parsing / packet handling
+├── screenshots/    # Example outputs, logs, benchmark results or diagrams
+├── .gitignore
+└── README.md
+
+## Design & Implementation Notes
+
+- **Zero-copy parsing:** Uses `mmap`‑ed RX buffer (or similar shared memory buffer) to avoid data copying; parsing reads directly from NIC buffer to parsed data structures.  
+- **Thread-per‑pipeline model:** Dedicated threads for each parsing queue (lock-free SPSC) to decouple IO, parsing, and data sequencing — reduces contention and maximises CPU utilisation on multicore machines.  
+- **Sequencer logic:** Maintains packet ordering metadata per feed, detects out-of-order, lost, or duplicate packets — enabling robust feed consumption even under high network load or packet churn.  
+- **Cache-aware data structures:** Parsing results and internal buffers aligned to cache-line boundaries; where possible uses contiguous memory layouts to improve CPU cache utilisation and reduce latency.  
 
 ## Why This Project Matters
-Market data feeds are the backbone of modern trading systems. This program demonstrates the ability to:
+I have completed this project with the intention of testing the limits of my knowledge on C++, computer microarchitecture, operating systems, networking and concurrency. It has been done in conjunction with studying the aforementioned topics and with the aim of pivoting my career into the world of quantitative finance. I believe that this project showcases the following qualities:
+- Strong mastery of systems programming and C++.  
+- Understanding of network I/O, concurrency primitives, and performance optimisation.  
+- Ability to design modular, maintainable, and efficient code for demanding real-time constraints.  
+- Self-driven initiative and real-world approach to low-latency market data processing — all without formal experience in trading environments.  
 
-- Work with **real-time, high-volume data streams**.
-- Write **efficient, maintainable C++ code**.
-- Build **robust, testable systems** that could integrate with trading or analytics platforms.
-- Apply **networking and low-latency programming skills**, which are critical in finance and other real-time domains.
+## Contact
+
+For questions or feedback, you can reach out via my LinkedIn profile: [https://www.linkedin.com/in/roark-m-0a759a175/]
+
 

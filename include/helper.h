@@ -102,10 +102,13 @@ inline std::string getMulticastInterface(const char * mcast_ip_addr) {
     int sockForIp = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
     if (sockForIp < 0) return "";
 
+    // Create a socket address to connect to the multicast IP, this wont atually be connected to
+    // since we are using UDP, but its a track to get the kernel to tell us what IP
+    // it would use if it were to connect to the multicast IP address
     sockaddr_in addr{};
     addr.sin_family = AF_INET;
     addr.sin_port = htons(12345);
-    inet_pton(AF_INET, mcast_ip_addr,&addr.sin_family);
+    inet_pton(AF_INET, mcast_ip_addr,&addr.sin_addr);
 
     // Connect to the address with the socket
     // Does not actually send packets as UDP is connectionless, this is just

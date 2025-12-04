@@ -137,6 +137,3 @@ public:
     // Vector of queues for storing the free buffers for each parsing thread
     std::vector<std::shared_ptr<SPSCQ<ParsingBuffer*>>> freeQueues;
 };
-
-// Parsing thread callable
-void parserThread(std::shared_ptr<SPSCQ<ParsingBuffer*>>, std::shared_ptr<SPSCQ<ParsingBuffer*>>, int);

@@ -13,12 +13,11 @@
 #include <sys/mman.h>
 #include <functional>
 #include <future>
+#include <charconv>
 #include "parse.h"
 #include "sequencer.h"
 #include "queue.h"
 
-#define MULTICAST_IP "239.1.1.1"
-#define PORT 30001
 #define LOG(x) std::cout << x << std::endl
 #define LOGREAD(x) std::cout << "READ " << x << " BYTES\n"
 
@@ -30,11 +29,30 @@ constexpr unsigned int FRAME_NR = (BLOCK_NR * BLOCK_SIZE) / FRAME_SIZE;
 
 int max_concurrency = std::thread::hardware_concurrency();
 
-int main() {
+int main(int argc, char * argv[]) {
+    // Affirm command line arguments
+    if (argc < 3) {
+        std::cerr << "Usage: sudo ./mdfh <MULTICAST_IP> <MULTICAST_PORT>" << std::endl;
+        return 1;
+    }
+
+    const char *MULTICAST_IP = argv[1];
+
+    // check port
+    int PORT;
+    auto res = std::from_chars(argv[2], argv[2] + std::strlen(argv[2]), PORT);
+    if (res.ec != std::errc()) {
+        std::cerr << "PORT value not valid" << std::endl;
+        return 1;
+    }
+
     // 0. Pin to quiet core
     pinToCpu(--max_concurrency);
-    // 1. Get the interface name used for the multicast IP
-    std::string nic = "enxc8a362d92729";
+    setPriority(99);
+
+    // 1. Get the interface name used for the multicast processing
+    std::string nic = getMulticastInterface(MULTICAST_IP);
+    
     if (nic.empty()) {
         std::cerr << "Failed to determine interface for muticast IP: " << MULTICAST_IP << std::endl;
         return 1;
@@ -128,10 +146,11 @@ int main() {
     // Spawn parser threads
     for (int i = 0; i < max_concurrency; i++) {
         // run async, no need for std::async as we have no use of the std::future return value
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
         std::thread(parserThread, bufPool.parseQueues[i], bufPool.freeQueues[i], i).detach();
     }
 
-    std::cout << "SPAWNED " << max_concurrency << " PARSING THREADS";
+    std::cout << "SPAWNED " << max_concurrency << " PARSING THREADS\n";
     for(uint32_t block_idx = 0; ;block_idx = (block_idx + 1) % BLOCK_NR)
     {
         // Get the TPACKET_V3 block pointer 
@@ -224,11 +243,10 @@ int main() {
             }
             current_packet = (tpacket3_hdr *)((uint8_t*) current_packet + current_packet->tp_next_offset);
         }
-
+        
         release_block(block_ptr);
     }
 
-    // 8. Stop the timer thread
     GlobalState::timerIsRunning.store(false, std::memory_order_relaxed);
     gapTimerThread.join();
     munmap(ringPtr, mmap_len); // Unmap the shared memory to release it

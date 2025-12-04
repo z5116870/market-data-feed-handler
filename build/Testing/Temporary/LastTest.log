@@ -1,0 +1,300 @@
+Start testing: Dec 04 13:40 UTC
+----------------------------------------------------------
+1/11 Testing: ParseTradeTest.CorrectParsing
+1/11 Test: ParseTradeTest.CorrectParsing
+Command: "/home/roarkmenezes/Documents/market-data-feed-handler/build/bin/mdfh_unit_tests" "--gtest_filter=ParseTradeTest.CorrectParsing" "--gtest_also_run_disabled_tests"
+Directory: /home/roarkmenezes/Documents/market-data-feed-handler/build
+"ParseTradeTest.CorrectParsing" start time: Dec 04 13:40 UTC
+Output:
+----------------------------------------------------------
+Running main() from /home/roarkmenezes/Documents/market-data-feed-handler/build/_deps/googletest-src/googletest/src/gtest_main.cc
+Note: Google Test filter = ParseTradeTest.CorrectParsing
+[==========] Running 1 test from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 1 test from ParseTradeTest
+[ RUN      ] ParseTradeTest.CorrectParsing
+[A] timestamp=123456 sequenceNumber=42 orderRefNumber=999 shares=1000 stock=AAPL buysell=B price=150[       OK ] ParseTradeTest.CorrectParsing (0 ms)
+[----------] 1 test from ParseTradeTest (0 ms total)
+
+[----------] Global test environment tear-down
+[==========] 1 test from 1 test suite ran. (0 ms total)
+[  PASSED  ] 1 test.
+<end of output>
+Test time =   0.01 sec
+----------------------------------------------------------
+Test Passed.
+"ParseTradeTest.CorrectParsing" end time: Dec 04 13:40 UTC
+"ParseTradeTest.CorrectParsing" time elapsed: 00:00:00
+----------------------------------------------------------
+
+2/11 Testing: Sequencer.InOrderMessages
+2/11 Test: Sequencer.InOrderMessages
+Command: "/home/roarkmenezes/Documents/market-data-feed-handler/build/bin/mdfh_unit_tests" "--gtest_filter=Sequencer.InOrderMessages" "--gtest_also_run_disabled_tests"
+Directory: /home/roarkmenezes/Documents/market-data-feed-handler/build
+"Sequencer.InOrderMessages" start time: Dec 04 13:40 UTC
+Output:
+----------------------------------------------------------
+Running main() from /home/roarkmenezes/Documents/market-data-feed-handler/build/_deps/googletest-src/googletest/src/gtest_main.cc
+Note: Google Test filter = Sequencer.InOrderMessages
+[==========] Running 1 test from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 1 test from Sequencer
+[ RUN      ] Sequencer.InOrderMessages
+[       OK ] Sequencer.InOrderMessages (2 ms)
+[----------] 1 test from Sequencer (2 ms total)
+
+[----------] Global test environment tear-down
+[==========] 1 test from 1 test suite ran. (3 ms total)
+[  PASSED  ] 1 test.
+<end of output>
+Test time =   0.01 sec
+----------------------------------------------------------
+Test Passed.
+"Sequencer.InOrderMessages" end time: Dec 04 13:40 UTC
+"Sequencer.InOrderMessages" time elapsed: 00:00:00
+----------------------------------------------------------
+
+3/11 Testing: Sequencer.OutOfOrderMessages
+3/11 Test: Sequencer.OutOfOrderMessages
+Command: "/home/roarkmenezes/Documents/market-data-feed-handler/build/bin/mdfh_unit_tests" "--gtest_filter=Sequencer.OutOfOrderMessages" "--gtest_also_run_disabled_tests"
+Directory: /home/roarkmenezes/Documents/market-data-feed-handler/build
+"Sequencer.OutOfOrderMessages" start time: Dec 04 13:40 UTC
+Output:
+----------------------------------------------------------
+Running main() from /home/roarkmenezes/Documents/market-data-feed-handler/build/_deps/googletest-src/googletest/src/gtest_main.cc
+Note: Google Test filter = Sequencer.OutOfOrderMessages
+[==========] Running 1 test from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 1 test from Sequencer
+[ RUN      ] Sequencer.OutOfOrderMessages
+[       OK ] Sequencer.OutOfOrderMessages (2 ms)
+[----------] 1 test from Sequencer (2 ms total)
+
+[----------] Global test environment tear-down
+[==========] 1 test from 1 test suite ran. (2 ms total)
+[  PASSED  ] 1 test.
+<end of output>
+Test time =   0.01 sec
+----------------------------------------------------------
+Test Passed.
+"Sequencer.OutOfOrderMessages" end time: Dec 04 13:40 UTC
+"Sequencer.OutOfOrderMessages" time elapsed: 00:00:00
+----------------------------------------------------------
+
+4/11 Testing: Sequencer.DuplicateMessages
+4/11 Test: Sequencer.DuplicateMessages
+Command: "/home/roarkmenezes/Documents/market-data-feed-handler/build/bin/mdfh_unit_tests" "--gtest_filter=Sequencer.DuplicateMessages" "--gtest_also_run_disabled_tests"
+Directory: /home/roarkmenezes/Documents/market-data-feed-handler/build
+"Sequencer.DuplicateMessages" start time: Dec 04 13:40 UTC
+Output:
+----------------------------------------------------------
+Running main() from /home/roarkmenezes/Documents/market-data-feed-handler/build/_deps/googletest-src/googletest/src/gtest_main.cc
+Note: Google Test filter = Sequencer.DuplicateMessages
+[==========] Running 1 test from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 1 test from Sequencer
+[ RUN      ] Sequencer.DuplicateMessages
+[       OK ] Sequencer.DuplicateMessages (3 ms)
+[----------] 1 test from Sequencer (3 ms total)
+
+[----------] Global test environment tear-down
+[==========] 1 test from 1 test suite ran. (4 ms total)
+[  PASSED  ] 1 test.
+<end of output>
+Test time =   0.02 sec
+----------------------------------------------------------
+Test Passed.
+"Sequencer.DuplicateMessages" end time: Dec 04 13:40 UTC
+"Sequencer.DuplicateMessages" time elapsed: 00:00:00
+----------------------------------------------------------
+
+5/11 Testing: Sequencer.GapTimeoutHandling
+5/11 Test: Sequencer.GapTimeoutHandling
+Command: "/home/roarkmenezes/Documents/market-data-feed-handler/build/bin/mdfh_unit_tests" "--gtest_filter=Sequencer.GapTimeoutHandling" "--gtest_also_run_disabled_tests"
+Directory: /home/roarkmenezes/Documents/market-data-feed-handler/build
+"Sequencer.GapTimeoutHandling" start time: Dec 04 13:40 UTC
+Output:
+----------------------------------------------------------
+Running main() from /home/roarkmenezes/Documents/market-data-feed-handler/build/_deps/googletest-src/googletest/src/gtest_main.cc
+Note: Google Test filter = Sequencer.GapTimeoutHandling
+[==========] Running 1 test from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 1 test from Sequencer
+[ RUN      ] Sequencer.GapTimeoutHandling
+[       OK ] Sequencer.GapTimeoutHandling (2 ms)
+[----------] 1 test from Sequencer (2 ms total)
+
+[----------] Global test environment tear-down
+[==========] 1 test from 1 test suite ran. (3 ms total)
+[  PASSED  ] 1 test.
+<end of output>
+Test time =   0.01 sec
+----------------------------------------------------------
+Test Passed.
+"Sequencer.GapTimeoutHandling" end time: Dec 04 13:40 UTC
+"Sequencer.GapTimeoutHandling" time elapsed: 00:00:00
+----------------------------------------------------------
+
+6/11 Testing: Sequencer.HighVolumeRandom
+6/11 Test: Sequencer.HighVolumeRandom
+Command: "/home/roarkmenezes/Documents/market-data-feed-handler/build/bin/mdfh_unit_tests" "--gtest_filter=Sequencer.HighVolumeRandom" "--gtest_also_run_disabled_tests"
+Directory: /home/roarkmenezes/Documents/market-data-feed-handler/build
+"Sequencer.HighVolumeRandom" start time: Dec 04 13:40 UTC
+Output:
+----------------------------------------------------------
+Running main() from /home/roarkmenezes/Documents/market-data-feed-handler/build/_deps/googletest-src/googletest/src/gtest_main.cc
+Note: Google Test filter = Sequencer.HighVolumeRandom
+[==========] Running 1 test from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 1 test from Sequencer
+[ RUN      ] Sequencer.HighVolumeRandom
+[       OK ] Sequencer.HighVolumeRandom (8 ms)
+[----------] 1 test from Sequencer (9 ms total)
+
+[----------] Global test environment tear-down
+[==========] 1 test from 1 test suite ran. (9 ms total)
+[  PASSED  ] 1 test.
+<end of output>
+Test time =   0.02 sec
+----------------------------------------------------------
+Test Passed.
+"Sequencer.HighVolumeRandom" end time: Dec 04 13:40 UTC
+"Sequencer.HighVolumeRandom" time elapsed: 00:00:00
+----------------------------------------------------------
+
+7/11 Testing: SPSCQ.BasicPushPop
+7/11 Test: SPSCQ.BasicPushPop
+Command: "/home/roarkmenezes/Documents/market-data-feed-handler/build/bin/mdfh_unit_tests" "--gtest_filter=SPSCQ.BasicPushPop" "--gtest_also_run_disabled_tests"
+Directory: /home/roarkmenezes/Documents/market-data-feed-handler/build
+"SPSCQ.BasicPushPop" start time: Dec 04 13:40 UTC
+Output:
+----------------------------------------------------------
+Running main() from /home/roarkmenezes/Documents/market-data-feed-handler/build/_deps/googletest-src/googletest/src/gtest_main.cc
+Note: Google Test filter = SPSCQ.BasicPushPop
+[==========] Running 1 test from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 1 test from SPSCQ
+[ RUN      ] SPSCQ.BasicPushPop
+[       OK ] SPSCQ.BasicPushPop (0 ms)
+[----------] 1 test from SPSCQ (0 ms total)
+
+[----------] Global test environment tear-down
+[==========] 1 test from 1 test suite ran. (0 ms total)
+[  PASSED  ] 1 test.
+<end of output>
+Test time =   0.02 sec
+----------------------------------------------------------
+Test Passed.
+"SPSCQ.BasicPushPop" end time: Dec 04 13:40 UTC
+"SPSCQ.BasicPushPop" time elapsed: 00:00:00
+----------------------------------------------------------
+
+8/11 Testing: SPSCQ.FullQueue
+8/11 Test: SPSCQ.FullQueue
+Command: "/home/roarkmenezes/Documents/market-data-feed-handler/build/bin/mdfh_unit_tests" "--gtest_filter=SPSCQ.FullQueue" "--gtest_also_run_disabled_tests"
+Directory: /home/roarkmenezes/Documents/market-data-feed-handler/build
+"SPSCQ.FullQueue" start time: Dec 04 13:40 UTC
+Output:
+----------------------------------------------------------
+Running main() from /home/roarkmenezes/Documents/market-data-feed-handler/build/_deps/googletest-src/googletest/src/gtest_main.cc
+Note: Google Test filter = SPSCQ.FullQueue
+[==========] Running 1 test from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 1 test from SPSCQ
+[ RUN      ] SPSCQ.FullQueue
+[       OK ] SPSCQ.FullQueue (0 ms)
+[----------] 1 test from SPSCQ (0 ms total)
+
+[----------] Global test environment tear-down
+[==========] 1 test from 1 test suite ran. (1 ms total)
+[  PASSED  ] 1 test.
+<end of output>
+Test time =   0.01 sec
+----------------------------------------------------------
+Test Passed.
+"SPSCQ.FullQueue" end time: Dec 04 13:40 UTC
+"SPSCQ.FullQueue" time elapsed: 00:00:00
+----------------------------------------------------------
+
+9/11 Testing: SPSCQ.WrapAround
+9/11 Test: SPSCQ.WrapAround
+Command: "/home/roarkmenezes/Documents/market-data-feed-handler/build/bin/mdfh_unit_tests" "--gtest_filter=SPSCQ.WrapAround" "--gtest_also_run_disabled_tests"
+Directory: /home/roarkmenezes/Documents/market-data-feed-handler/build
+"SPSCQ.WrapAround" start time: Dec 04 13:40 UTC
+Output:
+----------------------------------------------------------
+Running main() from /home/roarkmenezes/Documents/market-data-feed-handler/build/_deps/googletest-src/googletest/src/gtest_main.cc
+Note: Google Test filter = SPSCQ.WrapAround
+[==========] Running 1 test from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 1 test from SPSCQ
+[ RUN      ] SPSCQ.WrapAround
+[       OK ] SPSCQ.WrapAround (0 ms)
+[----------] 1 test from SPSCQ (0 ms total)
+
+[----------] Global test environment tear-down
+[==========] 1 test from 1 test suite ran. (0 ms total)
+[  PASSED  ] 1 test.
+<end of output>
+Test time =   0.01 sec
+----------------------------------------------------------
+Test Passed.
+"SPSCQ.WrapAround" end time: Dec 04 13:40 UTC
+"SPSCQ.WrapAround" time elapsed: 00:00:00
+----------------------------------------------------------
+
+10/11 Testing: BufferPool.AllocationAndPushPop
+10/11 Test: BufferPool.AllocationAndPushPop
+Command: "/home/roarkmenezes/Documents/market-data-feed-handler/build/bin/mdfh_unit_tests" "--gtest_filter=BufferPool.AllocationAndPushPop" "--gtest_also_run_disabled_tests"
+Directory: /home/roarkmenezes/Documents/market-data-feed-handler/build
+"BufferPool.AllocationAndPushPop" start time: Dec 04 13:40 UTC
+Output:
+----------------------------------------------------------
+Running main() from /home/roarkmenezes/Documents/market-data-feed-handler/build/_deps/googletest-src/googletest/src/gtest_main.cc
+Note: Google Test filter = BufferPool.AllocationAndPushPop
+[==========] Running 1 test from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 1 test from BufferPool
+[ RUN      ] BufferPool.AllocationAndPushPop
+[       OK ] BufferPool.AllocationAndPushPop (8 ms)
+[----------] 1 test from BufferPool (8 ms total)
+
+[----------] Global test environment tear-down
+[==========] 1 test from 1 test suite ran. (9 ms total)
+[  PASSED  ] 1 test.
+<end of output>
+Test time =   0.02 sec
+----------------------------------------------------------
+Test Passed.
+"BufferPool.AllocationAndPushPop" end time: Dec 04 13:40 UTC
+"BufferPool.AllocationAndPushPop" time elapsed: 00:00:00
+----------------------------------------------------------
+
+11/11 Testing: BufferPool.StressTest
+11/11 Test: BufferPool.StressTest
+Command: "/home/roarkmenezes/Documents/market-data-feed-handler/build/bin/mdfh_unit_tests" "--gtest_filter=BufferPool.StressTest" "--gtest_also_run_disabled_tests"
+Directory: /home/roarkmenezes/Documents/market-data-feed-handler/build
+"BufferPool.StressTest" start time: Dec 04 13:40 UTC
+Output:
+----------------------------------------------------------
+Running main() from /home/roarkmenezes/Documents/market-data-feed-handler/build/_deps/googletest-src/googletest/src/gtest_main.cc
+Note: Google Test filter = BufferPool.StressTest
+[==========] Running 1 test from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 1 test from BufferPool
+[ RUN      ] BufferPool.StressTest
+[       OK ] BufferPool.StressTest (9 ms)
+[----------] 1 test from BufferPool (9 ms total)
+
+[----------] Global test environment tear-down
+[==========] 1 test from 1 test suite ran. (10 ms total)
+[  PASSED  ] 1 test.
+<end of output>
+Test time =   0.02 sec
+----------------------------------------------------------
+Test Passed.
+"BufferPool.StressTest" end time: Dec 04 13:40 UTC
+"BufferPool.StressTest" time elapsed: 00:00:00
+----------------------------------------------------------
+
+End testing: Dec 04 13:40 UTC

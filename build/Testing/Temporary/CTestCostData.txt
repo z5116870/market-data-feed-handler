@@ -1,0 +1,12 @@
+ParseTradeTest.CorrectParsing 29 0.000310104
+Sequencer.InOrderMessages 29 0.000336741
+Sequencer.OutOfOrderMessages 23 0.000371813
+Sequencer.DuplicateMessages 25 0.000651189
+Sequencer.GapTimeoutHandling 29 0.00047026
+Sequencer.HighVolumeRandom 13 0.00149575
+SPSCQ.BasicPushPop 29 0.000606033
+SPSCQ.FullQueue 29 0.000385184
+SPSCQ.WrapAround 29 0.000193364
+BufferPool.AllocationAndPushPop 2 0.00958651
+BufferPool.StressTest 29 0.000812633
+---

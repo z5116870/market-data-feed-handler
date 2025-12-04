@@ -32,11 +32,15 @@ void resetStaticMessages() {
 // --- Tests ---
 
 TEST(ParseTradeTest, CorrectParsing) {
+    // GIVEN a input TradeMessage
     resetStaticMessages();
     char buf[36];
     fillTradeBuffer(buf, 'A', 123456, 42, 999, 'B', 1000, "AAPL", 150);
+
+    // WHEN we parse it
     parseTrade(buf, tradeMsg);
 
+    // THEN we expect the parsed struct to be set correctly
     EXPECT_EQ(tradeMsg.messageType, 'A');
     EXPECT_EQ(tradeMsg.timestamp, 123456);
     EXPECT_EQ(tradeMsg.sequenceNumber, 42);

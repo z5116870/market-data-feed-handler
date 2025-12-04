@@ -1,4 +1,7 @@
 # I LOVE CMAKE :((
+#----------------
+#SETUP
+#----------------
 cmake_minimum_required(VERSION 3.16) #tell CMake the minimum version required
 project(market-data-feed-handler LANGUAGES CXX) #set project name, CXX = C++ only
 enable_testing()

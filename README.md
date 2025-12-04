@@ -4,7 +4,7 @@ This project is a C++ application designed to parse exchange market feeds in rea
 ## Running the program
 To run the program navigate to `build/` and follow the instructions. Make sure you run itch-message-generator first using a certain `MULTICAST_IP` and `PORT`, then run MDFH using:
 ```bash
-sudo ./mdfh <MULTICAST_IP> <PORT>
+sudo ./build/bin/mdfh <MULTICAST_IP> <PORT>
 ```
 
 ## Key Features

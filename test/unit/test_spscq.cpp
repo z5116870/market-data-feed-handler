@@ -68,17 +68,29 @@ TEST(SPSCQ, WrapAround) {
 // ------------------ BufferPool Tests ------------------
 
 TEST(BufferPool, AllocationAndPushPop) {
+    // The expectation is that at the beginning of program execution, all parse queues are empty and all free queues are full
+    // the network thread only ever moves from the free queues to the parse queues, and the parsing threads move from their own
+    // parse queue back to the free queue after parsing
     int numThreads = 2;
     BufferPool pool(numThreads);
 
-    // Test that free buffers can be popped
+    // Test that free buffers can be popped. This should pop both from the first queue
+    // as popping is done from the first available queue. We need to exhaust the first queue to get from the second
     ParsingBuffer* buf1 = pool.getFreeBuffer();
     ParsingBuffer* buf2 = pool.getFreeBuffer();
     EXPECT_NE(buf1, nullptr);
     EXPECT_NE(buf2, nullptr);
     EXPECT_NE(buf1, buf2);
 
-    // Test pushing buffer into parse queue
+    // Get a free buffer from the second queue
+    // First exhaust the first buffer
+    ParsingBuffer *q2;
+    for (int i = 0; i < NUM_OF_BUFFERS - 2; i++) q2 = pool.getFreeBuffer();
+
+    // Now we should get a pointer to free buffer from the second queue
+    q2 = pool.getFreeBuffer();
+
+    // Test pushing buffer into parse queue (should push both into the first queue)
     EXPECT_TRUE(pool.pushBufferToParse(buf1));
     EXPECT_TRUE(pool.pushBufferToParse(buf2));
 
@@ -86,7 +98,8 @@ TEST(BufferPool, AllocationAndPushPop) {
     ParsingBuffer* out1;
     ParsingBuffer* out2;
     EXPECT_TRUE(pool.parseQueues[0]->pop(out1));
-    EXPECT_TRUE(pool.parseQueues[1]->pop(out2));
+    EXPECT_FALSE(pool.parseQueues[1]->pop(out2)); // This should fail because the second parse queue is empty
+    EXPECT_TRUE(pool.parseQueues[0]->pop(out2));
 }
 
 // Stress test with multiple pushes/pops

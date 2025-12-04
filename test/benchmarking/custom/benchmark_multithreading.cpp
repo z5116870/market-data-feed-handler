@@ -13,9 +13,11 @@
 #include <sys/mman.h>
 #include <functional>
 #include <future>
-#include "../../../src/parse.h"
-#include "../../../src/sequencer.h"
-#include "../../../src/queue.h"
+#include "parse.h"
+#include "sequencer.h"
+#include "queue.h"
+
+// Fix the IP/port pair for testing
 #define MULTICAST_IP "239.1.1.1"
 #define PORT 30001
 #define LOG(x) std::cout << x << std::endl

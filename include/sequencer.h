@@ -23,6 +23,7 @@ struct alignas(64) GlobalState {
     // Sequencer
     inline static std::atomic<uint32_t> nextSeq = UINT32_MAX; // sentinel, will be initialized on first packet
     inline static std::atomic<uint32_t> highestSeq = 0;
+    inline static std::atomic<uint32_t> lowestSeq = UINT32_MAX;
     inline static std::atomic<bool> gapExists = false;
 
     // ring buffer (indexed using modulus operator) for tracking 
@@ -40,15 +41,21 @@ struct alignas(64) GlobalState {
 
 inline void checkAndSetGlobalState(const uint32_t &seq) {
     // *** Refer to Sequencer state diagram for more information ***
-    // Initialize nextSeq if this is the very first packet received (nextSeq is set to UIN32_MAX on init)
+    // Initialize nextSeq if this is the very first packet received (nextSeq is set to UINT32_MAX on init)
     // Branch prediction penalties amortized with extending runtime
     uint32_t expected = UINT32_MAX;
     GlobalState::nextSeq.compare_exchange_strong(expected, seq);
+
+    // Initliase lowest seq to the current seq as well
+    GlobalState::lowestSeq.compare_exchange_strong(expected, seq);
 
     // Update highest sequence number seen
     uint32_t oldHigh = GlobalState::highestSeq.load(std::memory_order_acquire);
     while (seq > oldHigh && GlobalState::highestSeq.compare_exchange_weak(oldHigh, seq, std::memory_order_release)) {};
 
+    // Update lowest sequence number seen
+    uint32_t oldLow = GlobalState::lowestSeq.load(std::memory_order_acquire);
+    while (seq < oldLow && GlobalState::lowestSeq.compare_exchange_weak(oldLow, seq, std::memory_order_release)) {};
     // 1. seq < nextSeq (duplicate)
     if (seq < GlobalState::nextSeq.load(std::memory_order_acquire)) {
         // DUPLICATE

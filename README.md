@@ -1,5 +1,5 @@
 # market-data-feed-handler (MDFH)
-This project is a C++ application designed to parse exchange market feeds in real time via UDP multicast traffic. To be used in conjunction with [itch-message-generator](https://github.com/z5116870/itch-message-generator/) which runs parallel to this and provides the market feed. Subscription to real ITCH feeds from real exchanges isn't possible for me :(
+This project is a C++ application designed to parse exchange market feeds in real time via UDP multicast traffic. To be used in conjunction with [itch-message-generator](https://github.com/z5116870/itch-message-generator/) which runs parallel to this and provides the market feed. Subscription to real ITCH feeds isnt possible over the public internet due to the nature of multicast. As a result I created my own generator that sends multicast traffic, working properly in a local area network. 
 
 ## Build
 To run the program navigate to `build/` and follow the instructions. Make sure you run itch-message-generator first using a certain `MULTICAST_IP` and `PORT`, then run MDFH using:
